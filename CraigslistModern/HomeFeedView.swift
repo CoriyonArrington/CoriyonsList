@@ -10,7 +10,6 @@ struct HomeFeedView: View {
     @State private var selectedListingID: UUID?
     @State private var isDetailPresented = false
     
-    // Sets the default View Mode to Gallery
     @State private var viewMode: ViewMode = .gallery
     @State private var isNearbyMode = false
     
@@ -18,9 +17,17 @@ struct HomeFeedView: View {
     
     var homeListings: [Listing] {
         var results = appState.listings.filter { $0.tags.contains("home") }
-        if let cat = appState.selectedSubCategory {
-            results = results.filter { $0.category == cat }
+        
+        if let topCat = appState.selectedTopCategory {
+            if let validSubs = appState.subCategories[topCat] {
+                results = results.filter { validSubs.contains($0.category) }
+            }
         }
+        
+        if let subCat = appState.selectedSubCategory {
+            results = results.filter { $0.category == subCat }
+        }
+        
         return results
     }
     
@@ -48,9 +55,9 @@ struct HomeFeedView: View {
                     .ignoresSafeArea()
                     
                     VStack(spacing: 0) {
-                        Color.clear.frame(height: 112) // GlassHeader absolute height
+                        Color.clear.frame(height: 112)
                         FilterAndViewBar(viewMode: $viewMode)
-                            .padding(.top, 16) // Exactly 128px total offset
+                            .padding(.top, 16)
                         
                         Spacer()
                         
@@ -72,7 +79,7 @@ struct HomeFeedView: View {
                                 Text("Trending Nearby").font(.title3.bold()).padding(.horizontal, 16).shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 16) {
-                                        ForEach(homeListings) { listing in
+                                        ForEach(homeListings.prefix(8)) { listing in
                                             Button(action: { selectedListingID = listing.id; isDetailPresented = true }) { MapFeedCard(listing: listing) }.buttonStyle(.plain)
                                         }
                                     }.padding(.horizontal, 16)
@@ -82,12 +89,11 @@ struct HomeFeedView: View {
                     }
                 } else {
                     ScrollView(showsIndicators: false) {
-                        // 88px spacer + 24px VStack spacing + 16px top padding = 128px offset!
                         VStack(alignment: .leading, spacing: 24) {
                             Color.clear.frame(height: 88)
                             
                             FilterAndViewBar(viewMode: $viewMode)
-                                .padding(.top, 16) // Flawless sync with Map View
+                                .padding(.top, 16)
                             
                             CraigslistCategoryBrowser()
                             
@@ -102,7 +108,7 @@ struct HomeFeedView: View {
                                         Text("Top Deals").font(.title2.bold()).padding(.horizontal, 16)
                                         ScrollView(.horizontal, showsIndicators: false) {
                                             HStack(spacing: 16) {
-                                                ForEach(homeListings.shuffled()) { listing in
+                                                ForEach(homeListings.shuffled().prefix(8)) { listing in
                                                     SquareListingCard(listing: listing, size: 160).onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
                                                 }
                                             }.padding(.horizontal, 16)
@@ -175,16 +181,23 @@ struct GlassHeader: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
+                Image("CraigslistIcon")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+                    .foregroundColor(.craigslistPurple)
+                
                 Button(action: { showLocationSheet = true }) {
                     HStack(spacing: 4) {
-                        Image(systemName: "location.fill").foregroundColor(.craigslistPurple)
+                        Image(systemName: "location.fill").foregroundColor(.primary).font(.system(size: 14))
                         Text(appState.selectedLocation).font(.system(size: 15, weight: .bold)).foregroundColor(.primary)
                         Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).foregroundColor(.secondary)
                     }
                 }
                 .sheet(isPresented: $showLocationSheet) { LocationSelectionSheet().presentationDetents([.medium, .large]) }
                 Spacer()
-                Image(systemName: "person.circle.fill").resizable().frame(width: 32, height: 32).foregroundColor(.craigslistPurple)
+                Image(systemName: "person.circle.fill").resizable().frame(width: 30, height: 30).foregroundColor(.craigslistPurple)
             }
             .padding(.horizontal, 16).padding(.top, 12)
             
@@ -202,7 +215,12 @@ struct GlassHeader: View {
                         Text(placeholder).font(.system(size: 16)).foregroundColor(searchText.isEmpty ? .secondary : .primary).frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) { Image(systemName: "xmark.circle.fill").foregroundColor(.gray) }
+                        Button(action: {
+                            searchText = ""
+                            appState.autoSelectCategory(for: "")
+                        }) {
+                            Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
+                        }
                     }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 10)
@@ -216,7 +234,14 @@ struct GlassHeader: View {
             }
             .padding(.horizontal, 16).padding(.bottom, 12)
         }
-        .background(.regularMaterial, ignoresSafeAreaEdges: .top)
+        // FIX: Replaced view-level modifier with an explicitly drawn Rectangle that is forced to ignore the safe area.
+        .background(
+            Rectangle()
+                .fill(.ultraThickMaterial)
+                .ignoresSafeArea(.all, edges: .top)
+        )
+        // subtle bottom border explicitly defines where the header stops, fixing optical illusions of clipping
+        .overlay(Divider().opacity(0.3), alignment: .bottom)
         .onAppear {
             if autoFocus { DispatchQueue.main.async { isFocused = true } }
         }
@@ -318,8 +343,11 @@ struct CraigslistCategoryBrowser: View {
                             }
                         }) {
                             Text(sub).font(.system(size: 14, weight: .medium)).padding(.horizontal, 16).padding(.vertical, 8)
-                                .background(appState.selectedSubCategory == sub ? Color.craigslistPurple : Color(.systemGray6))
-                                .foregroundColor(appState.selectedSubCategory == sub ? .white : .primary).clipShape(Capsule())
+                                // FIX: .secondarySystemGroupedBackground handles both Light Mode (White) and Dark Mode (Elevated Gray) effortlessly
+                                .background(appState.selectedSubCategory == sub ? Color.craigslistPurple : Color(.secondarySystemGroupedBackground))
+                                .foregroundColor(appState.selectedSubCategory == sub ? .white : .primary)
+                                .clipShape(Capsule())
+                                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
                         }
                     }
                 }.padding(.horizontal, 16)
@@ -375,8 +403,8 @@ struct FilterSelectionSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 12) {
-                Capsule().fill(Color.gray.opacity(0.3)).frame(width: 40, height: 5).padding(.top, 12)
-                HStack { Text("Filters").font(.headline); Spacer(); Button("Done") { dismiss() }.font(.headline).foregroundColor(.craigslistPurple) }.padding(.horizontal, 16).padding(.bottom, 12)
+                HStack { Text("Filters").font(.headline); Spacer(); Button("Done") { dismiss() }.font(.headline).foregroundColor(.craigslistPurple) }
+                    .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 12)
             }
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
@@ -536,19 +564,27 @@ struct GalleryListingCard: View {
 struct SquareListingCard: View {
     var listing: Listing; var size: CGFloat
     var body: some View {
-        Color(.systemGray5)
-            .frame(width: size, height: size)
-            .overlay(
-                Group {
-                    if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
+        VStack(alignment: .leading, spacing: 8) {
+            Color(.systemGray5)
+                .frame(width: size, height: size)
+                .overlay(
+                    Group {
+                        if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
+                            }
                         }
                     }
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(.systemGray4), lineWidth: 1))
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(.systemGray4), lineWidth: 1))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("$\(listing.price)").font(.headline).foregroundColor(.primary)
+                Text(listing.title).font(.subheadline).foregroundColor(.secondary).lineLimit(1)
+            }
+            .frame(width: size, alignment: .leading)
+        }
     }
 }
 

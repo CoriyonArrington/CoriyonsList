@@ -17,7 +17,8 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                Color(.systemBackground).ignoresSafeArea() // Anchors full height
+                // UPDATED: Uses systemGroupedBackground to match HomeFeedView and let the pills pop!
+                Color(.systemGroupedBackground).ignoresSafeArea()
                 
                 ScrollView(showsIndicators: false) {
                     // Synchronized spacing: 88px spacer + 24px VStack spacing + 16px top padding = 128px offset
@@ -31,7 +32,6 @@ struct SearchView: View {
                         if !searchText.isEmpty {
                             VStack(alignment: .leading, spacing: 0) {
                                 
-                                // NEW: Explicit visual feedback that NLP category selection is working
                                 if let cat = appState.selectedSubCategory ?? appState.selectedTopCategory {
                                     Button(action: {
                                         isSearchFocused = false
