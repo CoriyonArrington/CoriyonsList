@@ -78,6 +78,18 @@ struct ListingDetailView: View {
         }
     }
     
+    // 3. Dynamic "Sliding Window" Pagination Logic (Caps dots at 5!)
+    private var displayedDotIndices: [Int] {
+        let total = allIDs.count
+        guard total > 0 else { return [] }
+        if total <= 5 { return Array(0..<total) }
+        
+        let current = currentIndex ?? 0
+        if current <= 2 { return Array(0..<5) }
+        if current >= total - 3 { return Array((total - 5)..<total) }
+        return Array((current - 2)...(current + 2))
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             ScrollView(showsIndicators: false) {
@@ -147,7 +159,6 @@ struct ListingDetailView: View {
                     
                     HStack(alignment: .top, spacing: 16) {
                         
-                        // Updated to load Avatar Image URL
                         if let url = URL(string: listing.sellerAvatar) {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image {
@@ -213,9 +224,15 @@ struct ListingDetailView: View {
                 Button(action: {}) {
                     Text("Message Seller").font(.headline).fontWeight(.bold).foregroundColor(Color(.systemBackground)).frame(maxWidth: .infinity).frame(height: 56).background(Color.primary).cornerRadius(16)
                 }
+                
+                // Sliding Pagination Dots logic applied safely here
                 HStack(spacing: 6) {
-                    ForEach(0..<allIDs.count, id: \.self) { index in
-                        Circle().fill(index == (currentIndex ?? 0) ? Color.primary : Color(.systemGray4)).frame(width: index == (currentIndex ?? 0) ? 8 : 6, height: index == (currentIndex ?? 0) ? 8 : 6).animation(.spring(), value: currentIndex)
+                    ForEach(displayedDotIndices, id: \.self) { index in
+                        let isActive = index == (currentIndex ?? 0)
+                        Circle()
+                            .fill(isActive ? Color.primary : Color(.systemGray4))
+                            .frame(width: isActive ? 8 : 6, height: isActive ? 8 : 6)
+                            .animation(.spring(), value: currentIndex)
                     }
                 }
             }
