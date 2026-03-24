@@ -26,16 +26,15 @@ struct ContentView: View {
                     .tabItem { Label("Chat", systemImage: "message.fill") }
                     .tag(4)
             }
-            .tint(.craigslistPurple) // Deep Craigslist Purple Global Tint
+            .tint(.craigslistPurple)
             .toolbarBackground(.visible, for: .tabBar)
             .toolbarBackground(.regularMaterial, for: .tabBar)
             
-            // Global Toast Notification
             if appState.showToast {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
                     Text(appState.toastMessage)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.custom("NunitoSans", size: 15).weight(.semibold))
                         .foregroundColor(.white)
                 }
                 .padding(.horizontal, 20)
@@ -62,16 +61,17 @@ struct PostPlaceholderView: View {
                     .foregroundColor(.craigslistPurple)
                 
                 Text("Create a new listing")
-                    .font(.title2.bold())
+                    .font(.custom("Montserrat", size: 22).weight(.bold))
                 
                 Text("Take photos, add a description, and post your item to the community in seconds.")
+                    .font(.custom("NunitoSans", size: 16).weight(.regular))
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 32)
                 
                 Button(action: {}) {
                     Text("Start Posting")
-                        .font(.headline)
+                        .font(.custom("Montserrat", size: 16).weight(.bold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()

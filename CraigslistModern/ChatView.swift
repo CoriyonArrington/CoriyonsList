@@ -55,18 +55,17 @@ struct ChatRow: View {
             .frame(width: 48, height: 48)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(chat.name).font(.headline).fontWeight(.bold)
-                Text(chat.message).font(.subheadline).foregroundColor(.secondary).lineLimit(1)
+                Text(chat.name).font(.custom("Montserrat", size: 16).weight(.bold))
+                Text(chat.message).font(.custom("NunitoSans", size: 14).weight(.regular)).foregroundColor(.secondary).lineLimit(1)
             }
             Spacer()
-            Text(chat.time).font(.footnote).foregroundColor(.secondary)
+            Text(chat.time).font(.custom("NunitoSans", size: 12).weight(.regular)).foregroundColor(.secondary)
         }
         .padding(.horizontal, 16).padding(.vertical, 16)
         Divider().padding(.leading, 80)
     }
 }
 
-// MARK: - Reusable Action Bar
 struct StatusActionBar: View {
     var options: [String]
     @Binding var selection: String
@@ -77,7 +76,7 @@ struct StatusActionBar: View {
                 ForEach(options, id: \.self) { option in
                     Button(action: { withAnimation { selection = option } }) {
                         Text(option)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.custom("Montserrat", size: 14).weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
                             .background(selection == option ? Color(.systemBackground) : Color.clear)

@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Pager Wrapper
 struct ListingPagerView: View {
-    @EnvironmentObject var appState: AppState // Added to access Toast state
+    @EnvironmentObject var appState: AppState
     @Binding var listings: [Listing]
     var filteredIDs: [UUID]
     @Binding var selectedListingID: UUID?
@@ -30,12 +30,11 @@ struct ListingPagerView: View {
             .tabViewStyle(.page(indexDisplayMode: .never))
             .background(Color(.systemBackground))
             
-            // Local Toast Overlay inside the Sheet
             if appState.showToast {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
                     Text(appState.toastMessage)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.custom("NunitoSans", size: 15).weight(.semibold))
                         .foregroundColor(.white)
                 }
                 .padding(.horizontal, 20)
@@ -43,7 +42,7 @@ struct ListingPagerView: View {
                 .background(Color.black.opacity(0.85))
                 .clipShape(Capsule())
                 .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 4)
-                .padding(.bottom, 120) // Hovers safely above the message bar
+                .padding(.bottom, 120)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(100)
             }
@@ -78,7 +77,6 @@ struct ListingDetailView: View {
         }
     }
     
-    // 3. Dynamic "Sliding Window" Pagination Logic (Caps dots at 5!)
     private var displayedDotIndices: [Int] {
         let total = allIDs.count
         guard total > 0 else { return [] }
@@ -132,10 +130,12 @@ struct ListingDetailView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(listing.title).font(.system(size: 28, weight: .bold)).foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(listing.title)
+                            .font(.custom("Montserrat", size: 28).weight(.bold))
+                            .foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
                         HStack(alignment: .firstTextBaseline) {
-                            Text("$\(listing.price)").font(.system(size: 24, weight: .heavy)).foregroundColor(.primary)
-                            Text("• \(listing.neighborhood)").font(.body).foregroundColor(.secondary)
+                            Text("$\(listing.price)").font(.custom("Montserrat", size: 24).weight(.heavy)).foregroundColor(.primary)
+                            Text("• \(listing.neighborhood)").font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.secondary)
                         }
                     }
                     .padding(.horizontal, 20).padding(.top, 24)
@@ -151,7 +151,7 @@ struct ListingDetailView: View {
                     Divider().padding(.horizontal, 20)
                     
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(listing.description).font(.body).foregroundColor(.secondary).lineSpacing(6)
+                        Text(listing.description).font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.secondary).lineSpacing(6)
                     }
                     .padding(.horizontal, 20).padding(.vertical, 24)
                     
@@ -175,19 +175,19 @@ struct ListingDetailView: View {
                         
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(alignment: .center, spacing: 8) {
-                                Text(listing.sellerName).font(.headline).foregroundColor(.primary)
+                                Text(listing.sellerName).font(.custom("Montserrat", size: 17).weight(.semibold)).foregroundColor(.primary)
                                 HStack(spacing: 3) {
                                     Image(systemName: "checkmark.shield.fill")
                                     Text("Verified by ID.me")
                                 }
-                                .font(.system(size: 10, weight: .bold)).foregroundColor(.green).padding(.horizontal, 6).padding(.vertical, 4).background(Color.green.opacity(0.15)).cornerRadius(6)
+                                .font(.custom("Montserrat", size: 10).weight(.bold)).foregroundColor(.green).padding(.horizontal, 6).padding(.vertical, 4).background(Color.green.opacity(0.15)).cornerRadius(6)
                             }
                             HStack(spacing: 4) {
                                 HStack(spacing: 2) { ForEach(0..<5, id: \.self) { _ in Image(systemName: "star.fill").font(.system(size: 12)).foregroundColor(.yellow) } }
-                                Text("5.0").font(.system(size: 13, weight: .bold)).foregroundColor(.primary)
-                                Text("(14 reviews)").font(.system(size: 13)).foregroundColor(.secondary)
+                                Text("5.0").font(.custom("Montserrat", size: 13).weight(.bold)).foregroundColor(.primary)
+                                Text("(14 reviews)").font(.custom("NunitoSans", size: 13).weight(.regular)).foregroundColor(.secondary)
                             }
-                            Text(listing.sellerType).font(.subheadline).foregroundColor(.secondary).padding(.top, 2)
+                            Text(listing.sellerType).font(.custom("NunitoSans", size: 14).weight(.regular)).foregroundColor(.secondary).padding(.top, 2)
                         }
                         Spacer()
                     }
@@ -210,7 +210,7 @@ struct ListingDetailView: View {
                         Button(action: goPrev) { Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold)).frame(width: 56, height: 56).contentShape(Rectangle()) }
                         .disabled(!hasPrev).foregroundColor(hasPrev ? .primary : Color(.systemGray3))
                         Spacer()
-                        Text("\(displayIndex) of \(allIDs.count) listings").font(.system(size: 15, weight: .semibold)).foregroundColor(.primary)
+                        Text("\(displayIndex) of \(allIDs.count) listings").font(.custom("Montserrat", size: 15).weight(.semibold)).foregroundColor(.primary)
                         Spacer()
                         Button(action: goNext) { Image(systemName: "chevron.right").font(.system(size: 20, weight: .semibold)).frame(width: 56, height: 56).contentShape(Rectangle()) }
                         .disabled(!hasNext).foregroundColor(hasNext ? .primary : Color(.systemGray3))
@@ -222,10 +222,9 @@ struct ListingDetailView: View {
             
             VStack(spacing: 12) {
                 Button(action: {}) {
-                    Text("Message Seller").font(.headline).fontWeight(.bold).foregroundColor(Color(.systemBackground)).frame(maxWidth: .infinity).frame(height: 56).background(Color.primary).cornerRadius(16)
+                    Text("Message Seller").font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(Color(.systemBackground)).frame(maxWidth: .infinity).frame(height: 56).background(Color.primary).cornerRadius(16)
                 }
                 
-                // Sliding Pagination Dots logic applied safely here
                 HStack(spacing: 6) {
                     ForEach(displayedDotIndices, id: \.self) { index in
                         let isActive = index == (currentIndex ?? 0)
@@ -266,7 +265,7 @@ struct GhostActionButton: View {
                 Image(systemName: icon).foregroundColor(iconColor ?? (isDestructive ? .red : .primary))
                 Text(title)
             }
-            .font(.system(size: 16, weight: .semibold)).foregroundColor(isDestructive ? .red : .primary).frame(maxWidth: .infinity).frame(height: 56)
+            .font(.custom("Montserrat", size: 16).weight(.semibold)).foregroundColor(isDestructive ? .red : .primary).frame(maxWidth: .infinity).frame(height: 56)
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(isDestructive ? Color.red.opacity(0.3) : Color(.systemGray4), lineWidth: 1.5))
         }
     }
@@ -277,7 +276,7 @@ struct AttributeIconView: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: icon).font(.system(size: 24, weight: .light)).foregroundColor(.primary)
-            Text(title).font(.system(size: 13, weight: .medium)).foregroundColor(.secondary).multilineTextAlignment(.center).lineLimit(2)
+            Text(title).font(.custom("NunitoSans", size: 13).weight(.semibold)).foregroundColor(.secondary).multilineTextAlignment(.center).lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .top)
     }

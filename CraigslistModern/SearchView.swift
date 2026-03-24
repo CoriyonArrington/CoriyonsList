@@ -17,18 +17,15 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                // UPDATED: Uses systemGroupedBackground to match HomeFeedView and let the pills pop!
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 
                 ScrollView(showsIndicators: false) {
-                    // Synchronized spacing: 88px spacer + 24px VStack spacing + 16px top padding = 128px offset
                     VStack(alignment: .leading, spacing: 24) {
                         Color.clear.frame(height: 88)
                         
                         CraigslistCategoryBrowser()
-                            .padding(.top, 16) // Exact padding match to HomeFeedView
+                            .padding(.top, 16)
                         
-                        // NLP Auto-Suggest OR Recent Searches
                         if !searchText.isEmpty {
                             VStack(alignment: .leading, spacing: 0) {
                                 
@@ -39,13 +36,17 @@ struct SearchView: View {
                                     }) {
                                         HStack {
                                             Image(systemName: "magnifyingglass").foregroundColor(.craigslistPurple)
-                                            Text("Search \"\(searchText)\" in ").foregroundColor(.primary) +
-                                            Text(cat).foregroundColor(.craigslistPurple).bold()
+                                            Text("Search \"\(searchText)\" in ")
+                                                .font(.custom("NunitoSans", size: 16).weight(.regular))
+                                                .foregroundColor(.primary) +
+                                            Text(cat)
+                                                .font(.custom("Montserrat", size: 16).weight(.bold))
+                                                .foregroundColor(.craigslistPurple)
                                             Spacer()
                                             Image(systemName: "chevron.right").foregroundColor(.gray)
                                         }
                                         .padding(.horizontal, 16).padding(.vertical, 14)
-                                        .background(Color.craigslistPurple.opacity(0.1)) // Subtle glow
+                                        .background(Color.craigslistPurple.opacity(0.1))
                                     }
                                     Divider().padding(.leading, 44)
                                 }
@@ -60,7 +61,9 @@ struct SearchView: View {
                                         }) {
                                             HStack {
                                                 Image(systemName: "magnifyingglass").foregroundColor(.secondary)
-                                                Text(suggestion).foregroundColor(.primary).padding(.leading, 4)
+                                                Text(suggestion)
+                                                    .font(.custom("NunitoSans", size: 16).weight(.regular))
+                                                    .foregroundColor(.primary).padding(.leading, 4)
                                                 Spacer()
                                                 Image(systemName: "arrow.up.backward").foregroundColor(.gray)
                                             }
@@ -72,7 +75,9 @@ struct SearchView: View {
                             }
                         } else {
                             VStack(alignment: .leading, spacing: 16) {
-                                HStack { Text("Recent Searches").font(.title3.bold()) }.padding(.horizontal, 16)
+                                HStack {
+                                    Text("Recent Searches").font(.custom("Montserrat", size: 20).weight(.bold))
+                                }.padding(.horizontal, 16)
                                 ForEach(searchListings.prefix(3)) { listing in
                                     Button(action: {
                                         selectedListingID = listing.id
@@ -87,7 +92,6 @@ struct SearchView: View {
                     }
                 }
                 
-                // MARK: - TOP FIXED HEADER
                 VStack(spacing: 0) {
                     GlassHeader(
                         searchText: $searchText,
@@ -96,7 +100,7 @@ struct SearchView: View {
                         onCancel: {
                             searchText = ""
                             isSearchFocused = false
-                            appState.selectedTab = appState.previousTab // Route safely back Home
+                            appState.selectedTab = appState.previousTab
                         }
                     )
                     Spacer()
