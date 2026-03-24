@@ -279,7 +279,7 @@ struct FilterAndViewBar: View {
                     Image(systemName: "chevron.down")
                 }
                 .font(.custom("Montserrat", size: 13).weight(.semibold))
-                .padding(.horizontal, 12).padding(.vertical, 8).background(Color(.systemGray5).opacity(0.8)).cornerRadius(16).foregroundColor(appState.selectedTopCategory != nil ? .craigslistPurple : .primary)
+                .padding(.horizontal, 12).padding(.vertical, 8).background(Color(.systemGray5).opacity(0.8)).cornerRadius(16).foregroundColor(appState.selectedTopCategory != nil ? .primary : .primary)
             }
             .sheet(isPresented: $showFilterSheet) { FilterSelectionSheet().presentationDetents([.medium, .large]) }
             
@@ -311,7 +311,7 @@ struct ViewSelectionSheet: View {
                 HStack {
                     Text("View Mode").font(.custom("Montserrat", size: 17).weight(.bold))
                     Spacer()
-                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.craigslistPurple)
+                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.primary)
                 }.padding(.horizontal, 16).padding(.bottom, 12)
             }
             VStack(alignment: .leading, spacing: 0) {
@@ -321,7 +321,7 @@ struct ViewSelectionSheet: View {
                             Image(systemName: mode.icon).foregroundColor(.primary).frame(width: 24, alignment: .leading)
                             Text(mode.rawValue).font(.custom("NunitoSans", size: 16).weight(.semibold)).foregroundColor(.primary)
                             Spacer()
-                            if viewMode == mode { Image(systemName: "checkmark").foregroundColor(.craigslistPurple) }
+                            if viewMode == mode { Image(systemName: "checkmark").foregroundColor(.primary) }
                         }
                         .padding(.vertical, 16).padding(.horizontal, 16)
                     }
@@ -330,6 +330,58 @@ struct ViewSelectionSheet: View {
             }.padding(.top, 8)
             Spacer()
         }.background(Color(.systemBackground))
+    }
+}
+
+struct CategoryCircle: View {
+    @EnvironmentObject var appState: AppState
+    var icon: String; var color: Color; var label: String
+    var onTap: (() -> Void)? = nil
+    var isSelected: Bool { appState.selectedTopCategory == label }
+    
+    var mutedColor: Color {
+        switch label {
+        case "For Sale": return Color(red: 0.35, green: 0.45, blue: 0.70)
+        case "Housing": return Color(red: 0.75, green: 0.45, blue: 0.35)
+        case "Jobs": return Color(red: 0.35, green: 0.60, blue: 0.45)
+        case "Community": return Color(red: 0.55, green: 0.40, blue: 0.65)
+        case "Services": return Color(red: 0.75, green: 0.40, blue: 0.50)
+        case "Gigs": return Color(red: 0.70, green: 0.55, blue: 0.30)
+        default: return color
+        }
+    }
+    
+    var body: some View {
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                if appState.selectedTopCategory == label {
+                    appState.selectedTopCategory = nil; appState.selectedSubCategory = nil
+                } else {
+                    appState.selectedTopCategory = label; appState.selectedSubCategory = nil
+                }
+            }
+            onTap?()
+        }) {
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? mutedColor : Color(.systemGray5))
+                        .frame(width: isSelected ? 64 : 56, height: isSelected ? 64 : 56)
+                        .shadow(color: isSelected ? mutedColor.opacity(0.4) : Color.clear, radius: 8, x: 0, y: 4)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: isSelected ? 24 : 20, weight: isSelected ? .bold : .medium))
+                        .foregroundColor(isSelected ? .white : .primary)
+                }
+                
+                Text(label)
+                    .font(.custom(isSelected ? "Montserrat" : "NunitoSans", size: 12).weight(isSelected ? .bold : .semibold))
+                    .foregroundColor(isSelected ? .primary : .secondary)
+            }
+            .frame(width: 76)
+        }.buttonStyle(.plain)
     }
 }
 
@@ -349,7 +401,7 @@ struct FilterSelectionSheet: View {
                 HStack {
                     Text("Filters").font(.custom("Montserrat", size: 17).weight(.bold))
                     Spacer()
-                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.craigslistPurple)
+                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.primary)
                 }
                 .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 12)
             }
@@ -359,18 +411,27 @@ struct FilterSelectionSheet: View {
                     
                     LazyVGrid(columns: columns, spacing: 24) {
                         Button(action: {
-                            withAnimation(.spring()) { appState.selectedTopCategory = nil; appState.selectedSubCategory = nil }
+                            let generator = UIImpactFeedbackGenerator(style: .light)
+                            generator.impactOccurred()
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { appState.selectedTopCategory = nil; appState.selectedSubCategory = nil }
                         }) {
-                            VStack(spacing: 8) {
+                            VStack(spacing: 12) {
                                 ZStack {
-                                    Circle().fill(appState.selectedTopCategory == nil ? Color.craigslistPurple : Color(.systemGray5)).frame(width: 72, height: 72)
-                                    Image(systemName: "square.grid.2x2.fill").font(.system(size: 30)).foregroundColor(appState.selectedTopCategory == nil ? .white : .primary)
-                                    if appState.selectedTopCategory == nil { Circle().stroke(Color.craigslistPurple, lineWidth: 2).frame(width: 80, height: 80) }
-                                }.frame(width: 86, height: 86)
+                                    Circle()
+                                        .fill(appState.selectedTopCategory == nil ? Color.primary : Color(.systemGray5))
+                                        .frame(width: appState.selectedTopCategory == nil ? 64 : 56, height: appState.selectedTopCategory == nil ? 64 : 56)
+                                        .shadow(color: appState.selectedTopCategory == nil ? Color.primary.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
+                                    
+                                    Image(systemName: "square.grid.2x2.fill")
+                                        .font(.system(size: appState.selectedTopCategory == nil ? 24 : 20, weight: appState.selectedTopCategory == nil ? .bold : .medium))
+                                        .foregroundColor(appState.selectedTopCategory == nil ? Color(.systemBackground) : .primary)
+                                }
+                                
                                 Text("All")
-                                    .font(appState.selectedTopCategory == nil ? .custom("Montserrat", size: 13).weight(.bold) : .custom("NunitoSans", size: 13).weight(.semibold))
-                                    .foregroundColor(.primary)
+                                    .font(.custom(appState.selectedTopCategory == nil ? "Montserrat" : "NunitoSans", size: 12).weight(appState.selectedTopCategory == nil ? .bold : .semibold))
+                                    .foregroundColor(appState.selectedTopCategory == nil ? .primary : .secondary)
                             }
+                            .frame(width: 76)
                         }.buttonStyle(.plain)
                         
                         ForEach(appState.topCategories, id: \.0) { cat in
@@ -391,11 +452,11 @@ struct FilterSelectionSheet: View {
                             }) {
                                 HStack {
                                     Text(sub)
-                                        .font(.custom("NunitoSans", size: 16).weight(.semibold))
-                                        .foregroundColor(appState.selectedSubCategory == sub ? .craigslistPurple : .primary)
+                                        .font(.custom("NunitoSans", size: 16).weight(appState.selectedSubCategory == sub ? .bold : .semibold))
+                                        .foregroundColor(appState.selectedSubCategory == sub ? .primary : .primary)
                                     Spacer()
                                     if appState.selectedSubCategory == sub {
-                                        Image(systemName: "checkmark").foregroundColor(.craigslistPurple)
+                                        Image(systemName: "checkmark").foregroundColor(.primary)
                                     }
                                 }
                                 .padding(.vertical, 14)
@@ -428,21 +489,21 @@ struct LocationSelectionSheet: View {
                 HStack {
                     Text("Location").font(.custom("Montserrat", size: 17).weight(.bold))
                     Spacer()
-                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.craigslistPurple)
+                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.primary)
                 }.padding(.horizontal, 16)
             }
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 32) {
                     Button(action: {}) {
                         HStack { Image(systemName: "location.fill"); Text("Use Current Location") }
-                        .font(.custom("Montserrat", size: 16).weight(.semibold)).foregroundColor(.craigslistPurple).frame(maxWidth: .infinity, alignment: .leading)
-                        .padding().background(Color.craigslistPurple.opacity(0.1)).cornerRadius(12)
+                        .font(.custom("Montserrat", size: 16).weight(.semibold)).foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
+                        .padding().background(Color(.systemGray5)).cornerRadius(12)
                     }.padding(.horizontal, 16).padding(.top, 24)
                     
                     VStack(alignment: .leading, spacing: 12) {
                         Text("NEARBY MODE").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary)
                         Toggle(isOn: $isNearbyMode) { Text("Prioritize nearby items & deals").font(.custom("NunitoSans", size: 16).weight(.regular)) }
-                    }.padding(.horizontal, 16).tint(.craigslistPurple)
+                    }.padding(.horizontal, 16).tint(.primary)
                     
                     VStack(alignment: .leading, spacing: 12) {
                         Text("SEARCH RADIUS").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary)
@@ -452,8 +513,8 @@ struct LocationSelectionSheet: View {
                                     Text("\(radius) miles")
                                         .font(.custom("NunitoSans", size: 14).weight(.semibold))
                                         .frame(maxWidth: .infinity).padding(.vertical, 10)
-                                        .background(searchRadius == radius ? Color.craigslistPurple : Color(.systemGray6))
-                                        .foregroundColor(searchRadius == radius ? .white : .primary)
+                                        .background(searchRadius == radius ? Color.primary : Color(.systemGray5))
+                                        .foregroundColor(searchRadius == radius ? Color(.systemBackground) : .primary)
                                         .cornerRadius(20)
                                 }
                             }
@@ -464,7 +525,7 @@ struct LocationSelectionSheet: View {
                         Text("NEIGHBORHOODS").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary).padding(.horizontal, 16).padding(.bottom, 8)
                         ForEach(neighborhoods, id: \.self) { loc in
                             Button(action: { appState.selectedLocation = loc; dismiss() }) {
-                                HStack { Image(systemName: "mappin.and.ellipse").foregroundColor(.secondary); Text(loc).font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.primary); Spacer(); if appState.selectedLocation == loc { Image(systemName: "checkmark").foregroundColor(.craigslistPurple) } }
+                                HStack { Image(systemName: "mappin.and.ellipse").foregroundColor(.secondary); Text(loc).font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.primary); Spacer(); if appState.selectedLocation == loc { Image(systemName: "checkmark").foregroundColor(.primary) } }
                                 .padding(.vertical, 14).padding(.horizontal, 16)
                             }
                             Divider().padding(.leading, 48)
@@ -475,7 +536,7 @@ struct LocationSelectionSheet: View {
                         Text("CITIES").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary).padding(.horizontal, 16).padding(.bottom, 8)
                         ForEach(cities, id: \.self) { loc in
                             Button(action: { appState.selectedLocation = loc; dismiss() }) {
-                                HStack { Image(systemName: "building.2.fill").foregroundColor(.secondary); Text(loc).font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.primary); Spacer(); if appState.selectedLocation == loc { Image(systemName: "checkmark").foregroundColor(.craigslistPurple) } }
+                                HStack { Image(systemName: "building.2.fill").foregroundColor(.secondary); Text(loc).font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.primary); Spacer(); if appState.selectedLocation == loc { Image(systemName: "checkmark").foregroundColor(.primary) } }
                                 .padding(.vertical, 14).padding(.horizontal, 16)
                             }
                             if loc != cities.last { Divider().padding(.leading, 48) }
@@ -484,42 +545,6 @@ struct LocationSelectionSheet: View {
                 }
             }
         }.background(Color(.systemBackground))
-    }
-}
-
-struct CategoryCircle: View {
-    @EnvironmentObject var appState: AppState
-    var icon: String; var color: Color; var label: String
-    var onTap: (() -> Void)? = nil
-    var isSelected: Bool { appState.selectedTopCategory == label }
-    
-    var body: some View {
-        Button(action: {
-            withAnimation(.spring()) {
-                if appState.selectedTopCategory == label {
-                    appState.selectedTopCategory = nil; appState.selectedSubCategory = nil
-                } else {
-                    appState.selectedTopCategory = label; appState.selectedSubCategory = nil
-                }
-            }
-            onTap?()
-        }) {
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle().fill(isSelected ? color : Color(.systemGray5)).frame(width: 72, height: 72)
-                    Image(systemName: icon).font(.system(size: 30)).foregroundColor(isSelected ? .white : color)
-                    
-                    if isSelected {
-                        Circle().stroke(color, lineWidth: 2).frame(width: 80, height: 80)
-                    }
-                }
-                .frame(width: 86, height: 86)
-                
-                Text(label)
-                    .font(isSelected ? .custom("Montserrat", size: 13).weight(.bold) : .custom("NunitoSans", size: 13).weight(.semibold))
-                    .foregroundColor(.primary)
-            }
-        }.buttonStyle(.plain)
     }
 }
 
@@ -568,7 +593,7 @@ struct GalleryListingCard: View {
                 }
             
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center) {
+                HStack(alignment: .top) {
                     Text(listing.title)
                         .font(.custom("Montserrat", size: 21).weight(.bold))
                         .foregroundColor(.primary)
@@ -581,7 +606,7 @@ struct GalleryListingCard: View {
                         .foregroundColor(.green)
                 }
                 
-                HStack(alignment: .center, spacing: 6) {
+                HStack(alignment: .center, spacing: 8) {
                     if let url = URL(string: listing.sellerAvatar) {
                         AsyncImage(url: url) { phase in
                             if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
@@ -593,20 +618,28 @@ struct GalleryListingCard: View {
                         Circle().fill(Color(.systemGray4)).frame(width: 20, height: 20)
                     }
                     
-                    HStack(spacing: 2) {
-                        Image(systemName: "star.fill").font(.system(size: 11)).foregroundColor(.yellow)
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill").font(.system(size: 13)).foregroundColor(.yellow)
                         Text("\(String(format: "%.1f", listing.sellerRating)) (\(listing.reviewCount))")
-                            .font(.custom("NunitoSans", size: 12).weight(.bold))
+                            .font(.custom("NunitoSans", size: 15).weight(.bold))
                             .foregroundColor(.secondary)
                     }
                     
                     Text("•")
-                        .font(.custom("NunitoSans", size: 12).weight(.bold))
+                        .font(.custom("NunitoSans", size: 15).weight(.bold))
                         .foregroundColor(.secondary)
-                        .padding(.horizontal, 2)
                     
-                    Text("\(String(format: "%.1f", listing.distance)) mi • \(listing.neighborhood)")
-                        .font(.custom("NunitoSans", size: 14).weight(.medium))
+                    Text("\(String(format: "%.1f", listing.distance)) mi")
+                        .font(.custom("NunitoSans", size: 15).weight(.medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        
+                    Text("•")
+                        .font(.custom("NunitoSans", size: 15).weight(.bold))
+                        .foregroundColor(.secondary)
+                        
+                    Text(listing.neighborhood)
+                        .font(.custom("NunitoSans", size: 15).weight(.medium))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                     
@@ -663,7 +696,7 @@ struct SquareListingCard: View {
                 }
             
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .center) {
+                HStack(alignment: .top) {
                     Text(listing.title)
                         .font(.custom("Montserrat", size: 14).weight(.bold))
                         .foregroundColor(.primary)
@@ -676,7 +709,7 @@ struct SquareListingCard: View {
                         .foregroundColor(.green)
                 }
                 
-                HStack(alignment: .center, spacing: 4) {
+                HStack(alignment: .center, spacing: 6) {
                     if let url = URL(string: listing.sellerAvatar) {
                         AsyncImage(url: url) { phase in
                             if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
@@ -688,9 +721,11 @@ struct SquareListingCard: View {
                         Circle().fill(Color(.systemGray4)).frame(width: 14, height: 14)
                     }
                     
-                    HStack(spacing: 2) {
+                    HStack(spacing: 4) {
                         Image(systemName: "star.fill").font(.system(size: 9)).foregroundColor(.yellow)
-                        Text("\(String(format: "%.1f", listing.sellerRating))").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.secondary)
+                        Text("\(String(format: "%.1f", listing.sellerRating))")
+                            .font(.custom("NunitoSans", size: 11).weight(.bold))
+                            .foregroundColor(.secondary)
                     }
                     
                     Text("•")
@@ -769,7 +804,7 @@ struct MapFeedCard: View {
                             .foregroundColor(.green)
                     }
                     
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         if let url = URL(string: listing.sellerAvatar) {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
@@ -780,9 +815,12 @@ struct MapFeedCard: View {
                         } else {
                             Circle().fill(Color(.systemGray4)).frame(width: 16, height: 16)
                         }
-                        HStack(spacing: 2) {
+                        
+                        HStack(spacing: 4) {
                             Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.yellow)
-                            Text("\(String(format: "%.1f", listing.sellerRating)) (\(listing.reviewCount))").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.white.opacity(0.9))
+                            Text("\(String(format: "%.1f", listing.sellerRating)) (\(listing.reviewCount))")
+                                .font(.custom("NunitoSans", size: 11).weight(.bold))
+                                .foregroundColor(.white.opacity(0.9))
                         }
                     }
                 }
@@ -837,7 +875,7 @@ struct GridListingCard: View {
                 }
             
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .center) {
+                HStack(alignment: .top) {
                     Text(listing.title)
                         .font(.custom("Montserrat", size: 15).weight(.bold))
                         .foregroundColor(.primary)
@@ -850,7 +888,7 @@ struct GridListingCard: View {
                         .foregroundColor(.green)
                 }
                 
-                HStack(alignment: .center, spacing: 4) {
+                HStack(alignment: .center, spacing: 6) {
                     if let url = URL(string: listing.sellerAvatar) {
                         AsyncImage(url: url) { phase in
                             if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
@@ -862,9 +900,11 @@ struct GridListingCard: View {
                         Circle().fill(Color(.systemGray4)).frame(width: 14, height: 14)
                     }
                     
-                    HStack(spacing: 2) {
+                    HStack(spacing: 4) {
                         Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.yellow)
-                        Text("\(String(format: "%.1f", listing.sellerRating))").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.secondary)
+                        Text("\(String(format: "%.1f", listing.sellerRating))")
+                            .font(.custom("NunitoSans", size: 11).weight(.bold))
+                            .foregroundColor(.secondary)
                     }
                     
                     Text("•")
@@ -872,7 +912,7 @@ struct GridListingCard: View {
                         .foregroundColor(.secondary)
                     
                     Text("\(String(format: "%.1f", listing.distance)) mi")
-                        .font(.custom("NunitoSans", size: 12).weight(.medium))
+                        .font(.custom("NunitoSans", size: 13).weight(.medium))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
@@ -943,16 +983,27 @@ struct ListListingCard: View {
                         Circle().fill(Color(.systemGray4)).frame(width: 16, height: 16)
                     }
                     
-                    HStack(spacing: 2) {
+                    HStack(spacing: 4) {
                         Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.yellow)
-                        Text("\(String(format: "%.1f", listing.sellerRating))").font(.custom("NunitoSans", size: 12).weight(.bold)).foregroundColor(.secondary)
+                        Text("\(String(format: "%.1f", listing.sellerRating))")
+                            .font(.custom("NunitoSans", size: 12).weight(.bold))
+                            .foregroundColor(.secondary)
                     }
                     
                     Text("•")
                         .font(.custom("NunitoSans", size: 12).weight(.bold))
                         .foregroundColor(.secondary)
                     
-                    Text("\(String(format: "%.1f", listing.distance)) mi • \(listing.neighborhood)")
+                    Text("\(String(format: "%.1f", listing.distance)) mi")
+                        .font(.custom("NunitoSans", size: 13).weight(.medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        
+                    Text("•")
+                        .font(.custom("NunitoSans", size: 12).weight(.bold))
+                        .foregroundColor(.secondary)
+                        
+                    Text(listing.neighborhood)
                         .font(.custom("NunitoSans", size: 13).weight(.medium))
                         .foregroundColor(.secondary)
                         .lineLimit(1)

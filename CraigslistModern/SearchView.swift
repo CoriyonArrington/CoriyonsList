@@ -165,23 +165,24 @@ struct CraigslistCategoryBrowser: View {
                     ForEach(appState.topCategories, id: \.0) { cat in
                         CategoryCircle(icon: cat.1, color: .craigslistPurple, label: cat.0)
                     }
-                }.padding(.horizontal, 16).padding(.bottom, 4)
+                }.padding(.horizontal, 20).padding(.vertical, 8)
             }
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(activeSubs, id: \.self) { sub in
                         Button(action: {
+                            let generator = UIImpactFeedbackGenerator(style: .light)
+                            generator.impactOccurred()
                             withAnimation(.spring()) {
                                 if appState.selectedSubCategory == sub { appState.selectedSubCategory = nil }
                                 else { appState.selectedSubCategory = sub }
                             }
                         }) {
-                            Text(sub).font(.custom("NunitoSans", size: 14).weight(.semibold)).padding(.horizontal, 16).padding(.vertical, 8)
-                                .background(appState.selectedSubCategory == sub ? Color.craigslistPurple : Color(.secondarySystemGroupedBackground))
-                                .foregroundColor(appState.selectedSubCategory == sub ? .white : .primary)
+                            Text(sub).font(.custom("NunitoSans", size: 14).weight(appState.selectedSubCategory == sub ? .bold : .semibold)).padding(.horizontal, 16).padding(.vertical, 8)
+                                .background(appState.selectedSubCategory == sub ? Color.primary : Color(.systemGray5))
+                                .foregroundColor(appState.selectedSubCategory == sub ? Color(.systemBackground) : .primary)
                                 .clipShape(Capsule())
-                                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
                         }
                     }
                 }.padding(.horizontal, 16)

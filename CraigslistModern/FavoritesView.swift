@@ -115,7 +115,7 @@ private struct FavoriteHeroCard: View {
                         .foregroundColor(.green)
                 }
                 
-                HStack(alignment: .center, spacing: 12) {
+                HStack(alignment: .center, spacing: 8) {
                     if let url = URL(string: listing.sellerAvatar) {
                         AsyncImage(url: url) { phase in
                             if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
@@ -127,18 +127,27 @@ private struct FavoriteHeroCard: View {
                         Circle().fill(Color(.systemGray4)).frame(width: 20, height: 20)
                     }
                     
-                    HStack(spacing: 2) {
-                        Image(systemName: "star.fill").font(.system(size: 11)).foregroundColor(.yellow)
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill").font(.system(size: 13)).foregroundColor(.yellow)
                         Text("\(String(format: "%.1f", listing.sellerRating)) (\(listing.reviewCount))")
-                            .font(.custom("NunitoSans", size: 12).weight(.bold))
+                            .font(.custom("NunitoSans", size: 15).weight(.bold))
                             .foregroundColor(.secondary)
                     }
                     
                     Text("•")
-                        .font(.custom("NunitoSans", size: 12).weight(.bold))
+                        .font(.custom("NunitoSans", size: 15).weight(.bold))
                         .foregroundColor(.secondary)
                     
-                    Text("\(String(format: "%.1f", listing.distance)) mi • \(listing.neighborhood)")
+                    Text("\(String(format: "%.1f", listing.distance)) mi")
+                        .font(.custom("NunitoSans", size: 15).weight(.medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        
+                    Text("•")
+                        .font(.custom("NunitoSans", size: 15).weight(.bold))
+                        .foregroundColor(.secondary)
+                        
+                    Text(listing.neighborhood)
                         .font(.custom("NunitoSans", size: 15).weight(.medium))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
@@ -209,7 +218,7 @@ private struct FavoriteGridCard: View {
                         .foregroundColor(.green)
                 }
                 
-                HStack(alignment: .center, spacing: 4) {
+                HStack(alignment: .center, spacing: 6) {
                     if let url = URL(string: listing.sellerAvatar) {
                         AsyncImage(url: url) { phase in
                             if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
@@ -221,9 +230,11 @@ private struct FavoriteGridCard: View {
                         Circle().fill(Color(.systemGray4)).frame(width: 14, height: 14)
                     }
                     
-                    HStack(spacing: 2) {
+                    HStack(spacing: 4) {
                         Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.yellow)
-                        Text("\(String(format: "%.1f", listing.sellerRating))").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.secondary)
+                        Text("\(String(format: "%.1f", listing.sellerRating))")
+                            .font(.custom("NunitoSans", size: 11).weight(.bold))
+                            .foregroundColor(.secondary)
                     }
                     
                     Text("•")
