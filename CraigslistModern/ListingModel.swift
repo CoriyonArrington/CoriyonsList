@@ -2,7 +2,6 @@ import Foundation
 import CoreLocation
 import SwiftUI
 
-// Adaptive Craigslist Purple (Deep #551A8B in Light Mode, Luminous in Dark Mode)
 extension Color {
     static let craigslistPurple = Color(UIColor { traitCollection in
         return traitCollection.userInterfaceStyle == .dark
@@ -11,13 +10,11 @@ extension Color {
     })
 }
 
-// MARK: - Global App State
 class AppState: ObservableObject {
     @Published var listings: [Listing] = initialMockListings
     @Published var favoriteIDs: Set<UUID> = []
     @Published var isLoading: Bool = false
     
-    // Smart Tab Routing
     @Published var previousTab: Int = 0
     @Published var selectedTab: Int = 0 {
         didSet {
@@ -27,7 +24,6 @@ class AppState: ObservableObject {
         }
     }
     
-    // Global Navigation & Filter State
     @Published var selectedLocation: String = "Minneapolis, MN"
     @Published var selectedTopCategory: String? = "For Sale"
     @Published var selectedSubCategory: String? = nil
@@ -35,7 +31,6 @@ class AppState: ObservableObject {
     @Published var showToast: Bool = false
     @Published var toastMessage: String = ""
     
-    // Craigslist Taxonomy
     let topCategories = [
         ("For Sale", "tag.fill"),
         ("Housing", "house.fill"),
@@ -58,7 +53,6 @@ class AppState: ObservableObject {
         fetchListings()
     }
     
-    // MARK: - Network Fetch
     func fetchListings() {
         guard let url = URL(string: "https://gist.githubusercontent.com/CoriyonArrington/b8faab1369f51cef1f7d63631b9a5762/raw/mock-data.json") else { return }
         
@@ -105,6 +99,8 @@ class AppState: ObservableObject {
                         sellerName: mock.sellerName,
                         sellerType: "Private Owner",
                         sellerAvatar: safeAvatar,
+                        sellerRating: mock.sellerRating ?? Double.random(in: 4.0...5.0),
+                        reviewCount: mock.reviewCount ?? Int.random(in: 1...50),
                         tags: ["home", "search"]
                     )
                 }
@@ -140,7 +136,6 @@ class AppState: ObservableObject {
         }
     }
     
-    // MARK: - NLP Smart Search & Auto-Select
     func getSuggestions(for query: String) -> [String] {
         guard !query.isEmpty else { return [] }
         let lowerQuery = query.lowercased()
@@ -189,7 +184,6 @@ class AppState: ObservableObject {
     }
 }
 
-// MARK: - Models
 enum ViewMode: String, CaseIterable {
     case gallery = "Gallery"
     case grid = "Grid"
@@ -221,6 +215,8 @@ struct Listing: Identifiable, Equatable {
     let sellerName: String
     let sellerType: String
     let sellerAvatar: String
+    let sellerRating: Double
+    let reviewCount: Int
     let tags: [String]
     
     static func == (lhs: Listing, rhs: Listing) -> Bool { return lhs.id == rhs.id }
@@ -236,7 +232,8 @@ struct MockarooListing: Codable {
     let category: String?
     let images: String?
     let sellerAvatar: String?
+    let sellerRating: Double?
+    let reviewCount: Int?
 }
 
-// MARK: - Initial Placholder State
 let initialMockListings: [Listing] = []

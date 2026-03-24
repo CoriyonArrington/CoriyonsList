@@ -184,8 +184,8 @@ struct ListingDetailView: View {
                             }
                             HStack(spacing: 4) {
                                 HStack(spacing: 2) { ForEach(0..<5, id: \.self) { _ in Image(systemName: "star.fill").font(.system(size: 12)).foregroundColor(.yellow) } }
-                                Text("5.0").font(.custom("Montserrat", size: 13).weight(.bold)).foregroundColor(.primary)
-                                Text("(14 reviews)").font(.custom("NunitoSans", size: 13).weight(.regular)).foregroundColor(.secondary)
+                                Text(String(format: "%.1f", listing.sellerRating)).font(.custom("Montserrat", size: 13).weight(.bold)).foregroundColor(.primary)
+                                Text("(\(listing.reviewCount) reviews)").font(.custom("NunitoSans", size: 13).weight(.regular)).foregroundColor(.secondary)
                             }
                             Text(listing.sellerType).font(.custom("NunitoSans", size: 14).weight(.regular)).foregroundColor(.secondary).padding(.top, 2)
                         }
@@ -247,7 +247,6 @@ struct ListingDetailView: View {
     }
 }
 
-// MARK: - Reusable UI Components
 struct CircularActionButton: View {
     let icon: String; var iconColor: Color = .primary; let action: () -> Void
     var body: some View {

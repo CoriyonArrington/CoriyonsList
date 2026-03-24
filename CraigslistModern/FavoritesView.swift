@@ -59,52 +59,187 @@ struct FavoritesView: View {
 }
 
 private struct FavoriteHeroCard: View {
+    @EnvironmentObject var appState: AppState
     var listing: Listing
+    
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image {
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } else {
-                        Color(.systemGray5)
+        VStack(alignment: .leading, spacing: 0) {
+            Color(.systemGray5)
+                .frame(height: 300)
+                .overlay(
+                    Group {
+                        if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
+                            }
+                        }
                     }
+                )
+                .clipped()
+                .overlay(
+                    LinearGradient(gradient: Gradient(colors: [.black.opacity(0.3), .clear]), startPoint: .top, endPoint: .center)
+                )
+                .overlay(alignment: .topLeading) {
+                    Text(listing.distance < 5.0 ? "Nearby" : "Just Listed")
+                        .font(.custom("NunitoSans", size: 11).weight(.bold))
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(.ultraThickMaterial)
+                        .clipShape(Capsule())
+                        .padding(12)
                 }
-            } else {
-                Color(.systemGray5)
-            }
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(appState.isFavorited(listing.id) ? .red : .primary)
+                        .frame(width: 36, height: 36)
+                        .background(.ultraThickMaterial)
+                        .clipShape(Circle())
+                        .padding(12)
+                        .onTapGesture {
+                            appState.toggleFavorite(listing.id)
+                        }
+                }
             
-            LinearGradient(gradient: Gradient(colors: [.clear, .black.opacity(0.8)]), startPoint: .center, endPoint: .bottom)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text("$\(listing.price)").font(.custom("Montserrat", size: 22).weight(.heavy)).foregroundColor(.white)
-                Text(listing.title).font(.custom("Montserrat", size: 18).weight(.bold)).foregroundColor(.white).lineLimit(2)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center) {
+                    Text(listing.title)
+                        .font(.custom("Montserrat", size: 21).weight(.bold))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    Text("$\(listing.price)")
+                        .font(.custom("Montserrat", size: 21).weight(.heavy))
+                        .foregroundColor(.green)
+                }
+                
+                HStack(alignment: .center, spacing: 12) {
+                    if let url = URL(string: listing.sellerAvatar) {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
+                            else { Color(.systemGray4) }
+                        }
+                        .frame(width: 20, height: 20)
+                        .clipShape(Circle())
+                    } else {
+                        Circle().fill(Color(.systemGray4)).frame(width: 20, height: 20)
+                    }
+                    
+                    HStack(spacing: 2) {
+                        Image(systemName: "star.fill").font(.system(size: 11)).foregroundColor(.yellow)
+                        Text("\(String(format: "%.1f", listing.sellerRating)) (\(listing.reviewCount))")
+                            .font(.custom("NunitoSans", size: 12).weight(.bold))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Text("•")
+                        .font(.custom("NunitoSans", size: 12).weight(.bold))
+                        .foregroundColor(.secondary)
+                    
+                    Text("\(String(format: "%.1f", listing.distance)) mi • \(listing.neighborhood)")
+                        .font(.custom("NunitoSans", size: 15).weight(.medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                }
             }
-            .padding()
+            .padding(16)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 300)
+        .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
 }
 
 private struct FavoriteGridCard: View {
+    @EnvironmentObject var appState: AppState
     var listing: Listing
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
-                    else { Color(.systemGray5) }
+        VStack(alignment: .leading, spacing: 0) {
+            Color(.systemGray5)
+                .frame(height: 160)
+                .overlay(
+                    Group {
+                        if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
+                            }
+                        }
+                    }
+                )
+                .clipped()
+                .overlay(
+                    LinearGradient(gradient: Gradient(colors: [.black.opacity(0.3), .clear]), startPoint: .top, endPoint: .center)
+                )
+                .overlay(alignment: .topLeading) {
+                    Text(listing.distance < 5.0 ? "Nearby" : "Just Listed")
+                        .font(.custom("NunitoSans", size: 10).weight(.bold))
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(.ultraThickMaterial)
+                        .clipShape(Capsule())
+                        .padding(8)
                 }
-                .frame(height: 160).clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(appState.isFavorited(listing.id) ? .red : .primary)
+                        .frame(width: 28, height: 28)
+                        .background(.ultraThickMaterial)
+                        .clipShape(Circle())
+                        .padding(8)
+                        .onTapGesture { appState.toggleFavorite(listing.id) }
+                }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .center) {
+                    Text(listing.title)
+                        .font(.custom("Montserrat", size: 15).weight(.bold))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    Text("$\(listing.price)")
+                        .font(.custom("Montserrat", size: 16).weight(.heavy))
+                        .foregroundColor(.green)
+                }
+                
+                HStack(alignment: .center, spacing: 4) {
+                    if let url = URL(string: listing.sellerAvatar) {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
+                            else { Color(.systemGray4) }
+                        }
+                        .frame(width: 14, height: 14)
+                        .clipShape(Circle())
+                    } else {
+                        Circle().fill(Color(.systemGray4)).frame(width: 14, height: 14)
+                    }
+                    
+                    HStack(spacing: 2) {
+                        Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.yellow)
+                        Text("\(String(format: "%.1f", listing.sellerRating))").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.secondary)
+                    }
+                    
+                    Text("•")
+                        .font(.custom("NunitoSans", size: 11).weight(.bold))
+                        .foregroundColor(.secondary)
+                    
+                    Text("\(String(format: "%.1f", listing.distance)) mi")
+                        .font(.custom("NunitoSans", size: 13).weight(.medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("$\(listing.price)").font(.custom("Montserrat", size: 16).weight(.bold)).foregroundColor(.primary)
-                Text(listing.title).font(.custom("NunitoSans", size: 14).weight(.regular)).foregroundColor(.secondary).lineLimit(1)
-                Text("\(String(format: "%.1f", listing.distance)) mi • \(listing.neighborhood)").font(.custom("NunitoSans", size: 12).weight(.regular)).foregroundColor(.gray).lineLimit(1)
-            }
+            .padding(12)
         }
-        .background(Color(.systemBackground))
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
 }
