@@ -34,7 +34,6 @@ struct SearchView: View {
                     }
                 }
                 
-                // MARK: - TOP FIXED HEADER
                 VStack(spacing: 0) {
                     GlassHeader(
                         searchText: $searchText,
@@ -64,7 +63,6 @@ struct SearchView: View {
         }
     }
     
-    // MARK: - Extracted Subviews
     @ViewBuilder
     private var searchSuggestionsView: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -75,7 +73,7 @@ struct SearchView: View {
                 }) {
                     HStack(spacing: 0) {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.craigslistPurple)
+                            .foregroundColor(Color.craigslistPurple)
                             .padding(.trailing, 8)
                         
                         Text("Search \"\(searchText)\" in ")
@@ -84,7 +82,7 @@ struct SearchView: View {
                         
                         Text(cat)
                             .font(.custom("Montserrat", size: 16).weight(.bold))
-                            .foregroundColor(.craigslistPurple)
+                            .foregroundColor(Color.craigslistPurple)
                         
                         Spacer()
                         Image(systemName: "chevron.right").foregroundColor(.gray)
@@ -146,64 +144,5 @@ struct SearchView: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Local Search Components
-struct CraigslistCategoryBrowser: View {
-    @EnvironmentObject var appState: AppState
-    
-    var activeSubs: [String] {
-        if let topCat = appState.selectedTopCategory, let subs = appState.subCategories[topCat] { return subs }
-        return ["Free", "Furniture", "Electronics", "Apts / Housing", "Cars", "Gigs"]
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 20) {
-                    ForEach(appState.topCategories, id: \.0) { cat in
-                        CategoryCircle(icon: cat.1, color: .craigslistPurple, label: cat.0)
-                    }
-                }.padding(.horizontal, 20).padding(.vertical, 8)
-            }
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(activeSubs, id: \.self) { sub in
-                        Button(action: {
-                            let generator = UIImpactFeedbackGenerator(style: .light)
-                            generator.impactOccurred()
-                            withAnimation(.spring()) {
-                                if appState.selectedSubCategory == sub { appState.selectedSubCategory = nil }
-                                else { appState.selectedSubCategory = sub }
-                            }
-                        }) {
-                            Text(sub).font(.custom("NunitoSans", size: 14).weight(appState.selectedSubCategory == sub ? .bold : .semibold)).padding(.horizontal, 16).padding(.vertical, 8)
-                                .background(appState.selectedSubCategory == sub ? Color.primary : Color(.systemGray5))
-                                .foregroundColor(appState.selectedSubCategory == sub ? Color(.systemBackground) : .primary)
-                                .clipShape(Capsule())
-                        }
-                    }
-                }.padding(.horizontal, 16)
-            }
-        }
-    }
-}
-
-struct RecentSearchRow: View {
-    var icon: String; var title: String; var subtitle: String; var isItem: Bool = false
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle().fill(Color(.systemGray5).opacity(0.6)).frame(width: 40, height: 40)
-                Image(systemName: icon).font(.system(size: 16, weight: .semibold)).foregroundColor(isItem ? .craigslistPurple : .secondary)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.custom("Montserrat", size: 16).weight(.semibold)).foregroundColor(.primary)
-                Text(subtitle).font(.custom("NunitoSans", size: 14).weight(.regular)).foregroundColor(.secondary)
-            }
-            Spacer()
-        }.padding(.horizontal, 16)
     }
 }

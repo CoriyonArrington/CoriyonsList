@@ -19,8 +19,12 @@ struct ListingPagerView: View {
                             selectedListingID: $selectedListingID,
                             onDismiss: { dismiss() },
                             onDelete: {
-                                listings.remove(at: index)
-                                if listings.isEmpty { dismiss() }
+                                appState.toggleHidden(id)
+                                if let nextID = getNextID(after: id) {
+                                    withAnimation { selectedListingID = nextID }
+                                } else {
+                                    dismiss()
+                                }
                             }
                         )
                         .tag(id as UUID?)
@@ -48,6 +52,13 @@ struct ListingPagerView: View {
             }
         }
     }
+    
+    private func getNextID(after id: UUID) -> UUID? {
+        guard let index = filteredIDs.firstIndex(of: id) else { return nil }
+        if index < filteredIDs.count - 1 { return filteredIDs[index + 1] }
+        if index > 0 { return filteredIDs[index - 1] }
+        return nil
+    }
 }
 
 // MARK: - Main Detail View
@@ -60,6 +71,8 @@ struct ListingDetailView: View {
     
     var onDismiss: () -> Void
     var onDelete: () -> Void
+    
+    @State private var showShareSheet = false
     
     private var currentIndex: Int? { allIDs.firstIndex(of: listing.id) }
     private var displayIndex: Int { (currentIndex ?? 0) + 1 }
@@ -86,6 +99,23 @@ struct ListingDetailView: View {
         if current <= 2 { return Array(0..<5) }
         if current >= total - 3 { return Array((total - 5)..<total) }
         return Array((current - 2)...(current + 2))
+    }
+    
+    private func getCategoryColor() -> Color {
+        switch listing.category {
+        case "Apts / Housing", "Rooms / Shared", "Sublets / Temporary", "Parking / Storage", "Office / Commercial":
+            return Color(red: 0.75, green: 0.45, blue: 0.35)
+        case "Tech / Software", "Hospitality", "Labor", "Education", "Creative", "Healthcare":
+            return Color(red: 0.35, green: 0.60, blue: 0.45)
+        case "Activities", "Events", "Volunteers", "Groups", "Lost & Found", "Childcare":
+            return .blue
+        case "Automotive", "Beauty", "Financial", "Labor / Move", "Real Estate":
+            return Color(red: 0.75, green: 0.40, blue: 0.50)
+        case "Computer", "Crew", "Domestic", "Event":
+            return Color(red: 0.70, green: 0.55, blue: 0.30)
+        default:
+            return Color.craigslistPurple
+        }
     }
     
     var body: some View {
@@ -116,35 +146,68 @@ struct ListingDetailView: View {
                             CircularActionButton(icon: "xmark", action: onDismiss)
                             Spacer()
                             HStack(spacing: 12) {
-                                CircularActionButton(icon: "hand.thumbsup", action: {})
                                 CircularActionButton(
-                                    icon: appState.isFavorited(listing.id) ? "heart.fill" : "heart",
-                                    iconColor: appState.isFavorited(listing.id) ? .red : .primary,
+                                    icon: "hand.thumbsup.fill",
+                                    iconColor: .blue,
+                                    action: { appState.toggleVoted(listing.id) }
+                                )
+                                CircularActionButton(
+                                    icon: "heart.fill",
+                                    iconColor: .orange,
                                     action: { appState.toggleFavorite(listing.id) }
                                 )
-                                CircularActionButton(icon: "square.and.arrow.up", action: {})
+                                CircularActionButton(
+                                    icon: "square.and.arrow.up.fill",
+                                    iconColor: Color.craigslistGreen,
+                                    action: { showShareSheet = true }
+                                )
                             }
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 24)
                     }
                     
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(listing.title)
-                            .font(.custom("Montserrat", size: 28).weight(.bold))
-                            .foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
-                        HStack(alignment: .firstTextBaseline) {
-                            Text("$\(listing.price)").font(.custom("Montserrat", size: 24).weight(.heavy)).foregroundColor(.primary)
-                            Text("• \(listing.neighborhood)").font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 16) {
+                            Text(listing.title)
+                                .font(.custom("Montserrat", size: 28).weight(.bold))
+                                .foregroundColor(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            Text("$\(listing.price)")
+                                .font(.custom("Montserrat", size: 28).weight(.heavy))
+                                .foregroundColor(Color.craigslistGreen)
+                                .layoutPriority(1)
                         }
+                        Text(listing.neighborhood)
+                            .font(.custom("NunitoSans", size: 16).weight(.medium))
+                            .foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 20).padding(.top, 24)
                     
                     HStack(alignment: .top) {
-                        AttributeIconView(icon: "clock", title: timeAgo(from: listing.datePosted))
-                        AttributeIconView(icon: "sparkles", title: listing.condition)
-                        AttributeIconView(icon: "tag", title: listing.category)
+                        // REORDERED: Category -> Distance -> Condition -> Time
+                        
+                        VStack(spacing: 10) {
+                            Image(systemName: "tag").font(.system(size: 24, weight: .light)).foregroundColor(getCategoryColor())
+                            Text(listing.category)
+                                .font(.custom("NunitoSans", size: 12).weight(.bold))
+                                .foregroundColor(getCategoryColor())
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(getCategoryColor().opacity(0.15))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(getCategoryColor(), lineWidth: 1))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        
                         AttributeIconView(icon: "location", title: "\(String(format: "%.1f", listing.distance)) mi")
+                        
+                        AttributeIconView(icon: "sparkles", title: listing.condition)
+                        
+                        AttributeIconView(icon: "clock", title: timeAgo(from: listing.datePosted))
                     }
                     .padding(.horizontal, 10).padding(.vertical, 24)
                     
@@ -194,15 +257,32 @@ struct ListingDetailView: View {
                     .padding(.horizontal, 20).padding(.vertical, 24)
                     
                     VStack(spacing: 12) {
-                        GhostActionButton(icon: "hand.thumbsup", title: "Vote / Thumbs Up", action: {})
                         GhostActionButton(
-                            icon: appState.isFavorited(listing.id) ? "heart.fill" : "heart",
+                            icon: "hand.thumbsup.fill",
+                            title: appState.votedIDs.contains(listing.id) ? "Upvoted" : "Vote / Thumbs Up",
+                            action: { appState.toggleVoted(listing.id) },
+                            themeColor: .blue,
+                            isActive: appState.votedIDs.contains(listing.id)
+                        )
+                        GhostActionButton(
+                            icon: "heart.fill",
                             title: appState.isFavorited(listing.id) ? "Saved to Favorites" : "Save Listing",
                             action: { appState.toggleFavorite(listing.id) },
-                            iconColor: appState.isFavorited(listing.id) ? .red : .primary
+                            themeColor: .orange,
+                            isActive: appState.isFavorited(listing.id)
                         )
-                        GhostActionButton(icon: "square.and.arrow.up", title: "Share Listing", action: {})
-                        GhostActionButton(icon: "flag", title: "Remove Listing", action: onDelete, isDestructive: true)
+                        GhostActionButton(
+                            icon: "square.and.arrow.up.fill",
+                            title: "Share Listing",
+                            action: { showShareSheet = true },
+                            themeColor: Color.craigslistGreen
+                        )
+                        GhostActionButton(
+                            icon: "flag",
+                            title: "Remove Listing",
+                            action: onDelete,
+                            themeColor: .gray
+                        )
                     }
                     .padding(.horizontal, 20)
                     
@@ -238,6 +318,9 @@ struct ListingDetailView: View {
             .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 32).background(Color(.systemBackground).shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5))
         }
         .background(Color(.systemBackground))
+        .sheet(isPresented: $showShareSheet) {
+            ListingShareSheet().presentationDetents([.height(340)])
+        }
     }
     
     private func timeAgo(from date: Date) -> String {
@@ -247,25 +330,40 @@ struct ListingDetailView: View {
     }
 }
 
+// MARK: - Buttons
 struct CircularActionButton: View {
     let icon: String; var iconColor: Color = .primary; let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 16, weight: .bold)).foregroundColor(iconColor).frame(width: 44, height: 44).background(Color(.systemBackground)).clipShape(Circle()).shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(iconColor)
+                .frame(width: 44, height: 44)
+                .background(Color(.systemBackground))
+                .clipShape(Circle())
+                .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
         }
     }
 }
 
 struct GhostActionButton: View {
-    let icon: String; let title: String; let action: () -> Void; var isDestructive: Bool = false; var iconColor: Color? = nil
+    let icon: String; let title: String; let action: () -> Void;
+    var isDestructive: Bool = false; var themeColor: Color? = nil
+    var isActive: Bool = false
+    
     var body: some View {
+        let color = themeColor ?? (isDestructive ? .red : .primary)
+        
         Button(action: action) {
             HStack(spacing: 8) {
-                Image(systemName: icon).foregroundColor(iconColor ?? (isDestructive ? .red : .primary))
+                Image(systemName: icon)
                 Text(title)
             }
-            .font(.custom("Montserrat", size: 16).weight(.semibold)).foregroundColor(isDestructive ? .red : .primary).frame(maxWidth: .infinity).frame(height: 56)
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(isDestructive ? Color.red.opacity(0.3) : Color(.systemGray4), lineWidth: 1.5))
+            .font(.custom("Montserrat", size: 16).weight(.semibold))
+            .foregroundColor(isActive ? Color(.systemBackground) : color)
+            .frame(maxWidth: .infinity).frame(height: 56)
+            .background(isActive ? color : color.opacity(0.1))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(color, lineWidth: 1.5))
         }
     }
 }

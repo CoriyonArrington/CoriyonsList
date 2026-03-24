@@ -8,11 +8,22 @@ extension Color {
             ? UIColor(red: 0.65, green: 0.40, blue: 1.0, alpha: 1.0)
             : UIColor(red: 0.33, green: 0.10, blue: 0.55, alpha: 1.0)
     })
+    
+    static let craigslistGreen = Color(UIColor { traitCollection in
+        return traitCollection.userInterfaceStyle == .dark
+            // Slightly deeper dark mode green, passes WCAG AA on black
+            ? UIColor(red: 0.20, green: 0.78, blue: 0.35, alpha: 1.0)
+            // Lighter light mode green, passes WCAG AA on white
+            : UIColor(red: 0.12, green: 0.55, blue: 0.22, alpha: 1.0)
+    })
 }
 
 class AppState: ObservableObject {
     @Published var listings: [Listing] = initialMockListings
     @Published var favoriteIDs: Set<UUID> = []
+    @Published var hiddenIDs: Set<UUID> = []
+    @Published var votedIDs: Set<UUID> = []
+    
     @Published var isLoading: Bool = false
     
     @Published var previousTab: Int = 0
@@ -124,9 +135,16 @@ class AppState: ObservableObject {
         }
     }
     
-    func isFavorited(_ id: UUID) -> Bool {
-        return favoriteIDs.contains(id)
+    func toggleHidden(_ id: UUID) {
+        hiddenIDs.insert(id)
     }
+    
+    func toggleVoted(_ id: UUID) {
+        votedIDs.insert(id)
+        triggerToast(message: "Upvoted Listing")
+    }
+    
+    func isFavorited(_ id: UUID) -> Bool { return favoriteIDs.contains(id) }
     
     func triggerToast(message: String) {
         toastMessage = message
@@ -155,36 +173,29 @@ class AppState: ObservableObject {
     
     func autoSelectCategory(for query: String) {
         let q = query.lowercased()
-        
         if q.isEmpty {
             selectedTopCategory = "For Sale"
             selectedSubCategory = nil
             return
         }
-        
         if q.contains("laptop") || q.contains("tv") || q.contains("macbook") || q.contains("sony") || q.contains("electronics") {
-            selectedTopCategory = "For Sale"
-            selectedSubCategory = "Electronics"
+            selectedTopCategory = "For Sale"; selectedSubCategory = "Electronics"
         } else if q.contains("chair") || q.contains("table") || q.contains("sofa") || q.contains("furniture") {
-            selectedTopCategory = "For Sale"
-            selectedSubCategory = "Furniture"
+            selectedTopCategory = "For Sale"; selectedSubCategory = "Furniture"
         } else if q.contains("bike") || q.contains("trek") {
-            selectedTopCategory = "For Sale"
-            selectedSubCategory = "Bikes"
+            selectedTopCategory = "For Sale"; selectedSubCategory = "Bikes"
         } else if q.contains("jacket") || q.contains("shirt") || q.contains("clothes") {
-            selectedTopCategory = "For Sale"
-            selectedSubCategory = "Clothing"
+            selectedTopCategory = "For Sale"; selectedSubCategory = "Clothing"
         } else if q.contains("apartment") || q.contains("rent") || q.contains("room") {
-            selectedTopCategory = "Housing"
-            selectedSubCategory = "Apts / Housing"
+            selectedTopCategory = "Housing"; selectedSubCategory = "Apts / Housing"
         } else if q.contains("developer") || q.contains("job") || q.contains("hire") {
-            selectedTopCategory = "Jobs"
-            selectedSubCategory = "Tech / Software"
+            selectedTopCategory = "Jobs"; selectedSubCategory = "Tech / Software"
         }
     }
 }
 
 enum ViewMode: String, CaseIterable {
+    case swipe = "Swipe"
     case gallery = "Gallery"
     case grid = "Grid"
     case list = "List"
@@ -192,6 +203,7 @@ enum ViewMode: String, CaseIterable {
     
     var icon: String {
         switch self {
+        case .swipe: return "rectangle.stack.fill"
         case .gallery: return "rectangle.grid.1x2.fill"
         case .grid: return "square.grid.2x2"
         case .list: return "list.bullet"
