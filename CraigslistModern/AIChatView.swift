@@ -66,10 +66,10 @@ struct AIChatView: View {
                                         
                                         Spacer()
                                         
-                                        // Dynamic Listing Count
+                                        // Dynamic Listing Count - Changed to Purple to avoid warning state
                                         Text("\(suggestion.count) listings")
                                             .font(.custom("Montserrat", size: 22).weight(.bold))
-                                            .foregroundColor(.yellow)
+                                            .foregroundColor(Color.craigslistPurple)
                                     }
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                                     .padding(20)

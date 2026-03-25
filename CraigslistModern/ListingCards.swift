@@ -35,7 +35,7 @@ struct GalleryListingCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(appState.isFavorited(listing.id) ? .orange : .primary)
+                        .foregroundColor(.orange) // Always retains the orange stroke outline
                         .frame(width: 36, height: 36)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -111,7 +111,7 @@ struct SquareListingCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(appState.isFavorited(listing.id) ? .orange : .primary)
+                        .foregroundColor(.orange) // Always retains the orange stroke outline
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -186,7 +186,7 @@ struct MapFeedCard: View {
                     Spacer()
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(appState.isFavorited(listing.id) ? .orange : .primary)
+                        .foregroundColor(.orange) // Always retains the orange stroke outline
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -260,7 +260,7 @@ struct GridListingCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(appState.isFavorited(listing.id) ? .orange : .primary)
+                        .foregroundColor(.orange) // Always retains the orange stroke outline
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -322,7 +322,7 @@ struct ListListingCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(appState.isFavorited(listing.id) ? .orange : .primary)
+                        .foregroundColor(.orange) // Always retains the orange stroke outline
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())

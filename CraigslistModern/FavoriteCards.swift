@@ -33,9 +33,9 @@ struct FavoriteHeroCard: View {
                     }.padding(12)
                 }
                 .overlay(alignment: .topTrailing) {
-                    Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
+                    Image(systemName: appState.favoriteIDs.contains(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(appState.isFavorited(listing.id) ? .orange : .primary)
+                        .foregroundColor(.orange) // Always retains the orange stroke outline
                         .frame(width: 36, height: 36)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -47,7 +47,7 @@ struct FavoriteHeroCard: View {
                 HStack(alignment: .center) {
                     Text(listing.title).font(.custom("Montserrat", size: 21).weight(.bold)).foregroundColor(.primary).lineLimit(1)
                     Spacer()
-                    Text("$\(listing.price)").font(.custom("Montserrat", size: 21).weight(.heavy)).foregroundColor(.green)
+                    Text("$\(listing.price)").font(.custom("Montserrat", size: 21).weight(.heavy)).foregroundColor(Color.craigslistGreen)
                 }
                 
                 HStack(alignment: .center, spacing: 8) {
@@ -70,7 +70,7 @@ struct FavoriteHeroCard: View {
             .padding(16)
         }
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
 }
@@ -108,9 +108,9 @@ struct FavoriteGridCard: View {
                     }.padding(8)
                 }
                 .overlay(alignment: .topTrailing) {
-                    Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
+                    Image(systemName: appState.favoriteIDs.contains(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(appState.isFavorited(listing.id) ? .orange : .primary)
+                        .foregroundColor(.orange) // Always retains the orange stroke outline
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -122,7 +122,7 @@ struct FavoriteGridCard: View {
                 HStack(alignment: .center) {
                     Text(listing.title).font(.custom("Montserrat", size: 15).weight(.bold)).foregroundColor(.primary).lineLimit(1)
                     Spacer()
-                    Text("$\(listing.price)").font(.custom("Montserrat", size: 16).weight(.heavy)).foregroundColor(.green)
+                    Text("$\(listing.price)").font(.custom("Montserrat", size: 16).weight(.heavy)).foregroundColor(Color.craigslistGreen)
                 }
                 
                 HStack(alignment: .center, spacing: 4) {
@@ -144,7 +144,7 @@ struct FavoriteGridCard: View {
             .padding(12)
         }
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
 }

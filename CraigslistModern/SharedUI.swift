@@ -65,6 +65,7 @@ struct GlassHeader: View {
     var onTapped: () -> Void = {}
     var onCancel: (() -> Void)? = nil
     @State private var showLocationSheet = false
+    @State private var showAccountSheet = false
     
     var body: some View {
         VStack(spacing: 12) {
@@ -87,7 +88,13 @@ struct GlassHeader: View {
                 }
                 .sheet(isPresented: $showLocationSheet) { LocationSelectionSheet().presentationDetents([.medium, .large]) }
                 Spacer()
-                Image(systemName: "person.circle.fill").resizable().frame(width: 30, height: 30).foregroundColor(Color.craigslistPurple)
+                
+                Button(action: { showAccountSheet = true }) {
+                    Image(systemName: "person.circle.fill").resizable().frame(width: 30, height: 30).foregroundColor(Color.craigslistPurple)
+                }
+                .sheet(isPresented: $showAccountSheet) {
+                    AccountView().presentationDetents([.medium, .large])
+                }
             }
             .padding(.horizontal, 16).padding(.top, 12)
             
@@ -153,6 +160,7 @@ struct FilterAndViewBar: View {
     
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
+    @AppStorage("isAskAIEnabled") private var isAskAIEnabled = false
     
     @State private var showFilterSheet = false
     @State private var showViewSheet = false
@@ -186,23 +194,25 @@ struct FilterAndViewBar: View {
             HStack(spacing: 8) {
                 
                 // 1. "Ask Craig" AI Button (Weight fixed to .medium)
-                Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                    showAIChat = true
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                        Text("Ask Craig").fixedSize(horizontal: true, vertical: false)
+                if isAskAIEnabled {
+                    Button(action: {
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                        showAIChat = true
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                            Text("Ask Craig").fixedSize(horizontal: true, vertical: false)
+                        }
+                        .font(.custom("Montserrat", size: 13).weight(.medium))
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(Color.craigslistPurple)
+                        .cornerRadius(16)
+                        .foregroundColor(.white)
                     }
-                    .font(.custom("Montserrat", size: 13).weight(.medium))
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(Color.craigslistPurple)
-                    .cornerRadius(16)
-                    .foregroundColor(.white)
-                }
-                .sheet(isPresented: $showAIChat) {
-                    AIChatView().presentationDetents([.fraction(0.9), .large])
+                    .sheet(isPresented: $showAIChat) {
+                        AIChatView().presentationDetents([.fraction(0.9), .large])
+                    }
                 }
                 
                 // 2. Category Filter
@@ -310,6 +320,14 @@ struct SortSelectionSheet: View {
 struct ViewSelectionSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var viewMode: ViewMode
+    @AppStorage("isSwipeViewEnabled") private var isSwipeViewEnabled = true
+    
+    var availableModes: [ViewMode] {
+        ViewMode.allCases.filter { mode in
+            if mode == .swipe { return isSwipeViewEnabled }
+            return true
+        }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -321,7 +339,7 @@ struct ViewSelectionSheet: View {
                 }.padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 12)
             }
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(ViewMode.allCases, id: \.self) { mode in
+                ForEach(availableModes, id: \.self) { mode in
                     Button(action: { viewMode = mode; dismiss() }) {
                         HStack {
                             Image(systemName: mode.icon).foregroundColor(.primary).frame(width: 24, alignment: .leading)
@@ -331,7 +349,7 @@ struct ViewSelectionSheet: View {
                         }
                         .padding(.vertical, 16).padding(.horizontal, 16)
                     }
-                    if mode != ViewMode.allCases.last { Divider().padding(.leading, 48) }
+                    if mode != availableModes.last { Divider().padding(.leading, 48) }
                 }
             }.padding(.top, 8)
             Spacer()

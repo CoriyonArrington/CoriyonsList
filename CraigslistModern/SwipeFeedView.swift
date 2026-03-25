@@ -111,7 +111,15 @@ struct SwipeListingCard: View {
     @State private var offset: CGSize = .zero
     @State private var showShareSheet = false
     
+    // We add local fill state to instantly fill the buttons when tapped before the card flies away
+    @State private var localVoteFill: Bool = false
+    @State private var localFavFill: Bool = false
+    
     var body: some View {
+        
+        let isVoted = appState.votedIDs.contains(listing.id) || localVoteFill
+        let isFavorited = appState.favoriteIDs.contains(listing.id) || localFavFill
+        
         ZStack(alignment: .bottom) {
             Color(.systemGray5)
                 .overlay(
@@ -175,12 +183,11 @@ struct SwipeListingCard: View {
                     }
                 }
                 
-                // REORDERED BUTTONS: Hide -> Thumbs Up -> Favorite -> Share -> Undo
                 HStack(spacing: 8) {
                     Spacer()
                     
-                    // 1. Hide (Replaced xmark with eye.slash.fill)
-                    Button(action: { triggerSwipe(action: .hide) }) {
+                    // 1. Hide
+                    Button(action: { handleButtonTap(action: .hide) }) {
                         Image(systemName: "eye.slash.fill")
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.white)
@@ -191,8 +198,8 @@ struct SwipeListingCard: View {
                     }
                     
                     // 2. Thumbs Up
-                    Button(action: { triggerSwipe(action: .vote) }) {
-                        Image(systemName: "hand.thumbsup.fill")
+                    Button(action: { handleButtonTap(action: .vote) }) {
+                        Image(systemName: isVoted ? "hand.thumbsup.fill" : "hand.thumbsup")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundColor(.blue)
                             .frame(width: 56, height: 56)
@@ -202,8 +209,8 @@ struct SwipeListingCard: View {
                     }
                     
                     // 3. Favorite
-                    Button(action: { triggerSwipe(action: .favorite) }) {
-                        Image(systemName: "heart.fill")
+                    Button(action: { handleButtonTap(action: .favorite) }) {
+                        Image(systemName: isFavorited ? "heart.fill" : "heart")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundColor(.orange)
                             .frame(width: 56, height: 56)
@@ -212,11 +219,11 @@ struct SwipeListingCard: View {
                             .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     
-                    // 4. Share
+                    // 4. Share - Now neutral to match ListingDetailView
                     Button(action: { showShareSheet = true }) {
-                        Image(systemName: "square.and.arrow.up.fill")
+                        Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(Color.craigslistGreen)
+                            .foregroundColor(.white)
                             .frame(width: 56, height: 56)
                             .background(Color(.systemGray5))
                             .clipShape(Circle())
@@ -242,7 +249,7 @@ struct SwipeListingCard: View {
             .environment(\.colorScheme, .dark)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .cornerRadius(24)
         .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
         .offset(x: offset.width, y: offset.height)
         .rotationEffect(.degrees(Double(offset.width / 30)))
@@ -266,6 +273,7 @@ struct SwipeListingCard: View {
                         if trans.width < -120 {
                             triggerSwipe(action: .hide)
                         } else if trans.width > 120 {
+                            localVoteFill = true
                             triggerSwipe(action: .vote)
                         } else {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { offset = .zero }
@@ -284,8 +292,23 @@ struct SwipeListingCard: View {
         )
     }
     
+    // Updates local state immediately, then delays the swipe so the user sees the fill
+    private func handleButtonTap(action: SwipeAction) {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        
+        if action == .vote { localVoteFill = true }
+        if action == .favorite { localFavFill = true }
+        
+        // Increased delay to 0.4s to let the button stay visibly filled longer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            triggerSwipe(action: action)
+        }
+    }
+    
     private func triggerSwipe(action: SwipeAction) {
-        withAnimation(.easeOut(duration: 0.3)) {
+        // Decreased duration to 0.15s so the card flies away much faster
+        withAnimation(.easeOut(duration: 0.15)) {
             switch action {
             case .hide: offset.width = -500
             case .vote: offset.width = 500
@@ -293,7 +316,8 @@ struct SwipeListingCard: View {
             }
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        // Matched the delay to the new faster swipe duration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             switch action {
             case .hide: appState.toggleHidden(listing.id)
             case .vote: appState.toggleVoted(listing.id)

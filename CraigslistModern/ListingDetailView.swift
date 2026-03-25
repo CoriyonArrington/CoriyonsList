@@ -4,27 +4,33 @@ import SwiftUI
 struct ListingPagerView: View {
     @EnvironmentObject var appState: AppState
     @Binding var listings: [Listing]
-    var filteredIDs: [UUID]
+    
+    // Using State here completely decouples the TabView from the live HomeFeed filter
+    @State private var localIDs: [UUID]
     @Binding var selectedListingID: UUID?
     @Environment(\.dismiss) var dismiss
+    
+    // We capture the snapshot exactly once when the sheet opens
+    init(listings: Binding<[Listing]>, filteredIDs: [UUID], selectedListingID: Binding<UUID?>) {
+        self._listings = listings
+        self._localIDs = State(initialValue: filteredIDs)
+        self._selectedListingID = selectedListingID
+    }
     
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedListingID) {
-                ForEach(filteredIDs, id: \.self) { id in
+                ForEach(localIDs, id: \.self) { id in
                     if let index = listings.firstIndex(where: { $0.id == id }) {
                         ListingDetailView(
                             listing: listings[index],
-                            allIDs: filteredIDs,
+                            allIDs: localIDs, // Pass the stable snapshot
                             selectedListingID: $selectedListingID,
                             onDismiss: { dismiss() },
                             onDelete: {
+                                // Deletion updates the global state, but the TabView ignores it
+                                // because localIDs doesn't shrink, preventing the flicker.
                                 appState.toggleHidden(id)
-                                if let nextID = getNextID(after: id) {
-                                    withAnimation { selectedListingID = nextID }
-                                } else {
-                                    dismiss()
-                                }
                             }
                         )
                         .tag(id as UUID?)
@@ -52,13 +58,6 @@ struct ListingPagerView: View {
             }
         }
     }
-    
-    private func getNextID(after id: UUID) -> UUID? {
-        guard let index = filteredIDs.firstIndex(of: id) else { return nil }
-        if index < filteredIDs.count - 1 { return filteredIDs[index + 1] }
-        if index > 0 { return filteredIDs[index - 1] }
-        return nil
-    }
 }
 
 // MARK: - Main Detail View
@@ -73,6 +72,7 @@ struct ListingDetailView: View {
     var onDelete: () -> Void
     
     @State private var showShareSheet = false
+    @State private var showAllActions = false // Controls the Show More / Show Less state
     
     private var currentIndex: Int? { allIDs.firstIndex(of: listing.id) }
     private var displayIndex: Int { (currentIndex ?? 0) + 1 }
@@ -87,6 +87,24 @@ struct ListingDetailView: View {
     private func goNext() {
         if let index = currentIndex, hasNext {
             withAnimation { selectedListingID = allIDs[index + 1] }
+        }
+    }
+    
+    // UPDATED: Now executes the action immediately so the button fills, then delays the swipe
+    private func handleAction(_ action: @escaping () -> Void) {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        
+        // Instantly updates state so the icon becomes solid
+        action()
+        
+        // Short delay lets the user see the solid fill before the card moves away
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            if hasNext {
+                goNext()
+            } else {
+                onDismiss()
+            }
         }
     }
     
@@ -146,19 +164,21 @@ struct ListingDetailView: View {
                             CircularActionButton(icon: "xmark", action: onDismiss)
                             Spacer()
                             HStack(spacing: 12) {
+                                // Forces iconColor to ALWAYS be blue to retain the stroke
                                 CircularActionButton(
-                                    icon: "hand.thumbsup.fill",
+                                    icon: appState.votedIDs.contains(listing.id) ? "hand.thumbsup.fill" : "hand.thumbsup",
                                     iconColor: .blue,
-                                    action: { appState.toggleVoted(listing.id) }
+                                    action: { handleAction { appState.toggleVoted(listing.id) } }
                                 )
+                                // Forces iconColor to ALWAYS be orange to retain the stroke
                                 CircularActionButton(
-                                    icon: "heart.fill",
+                                    icon: appState.isFavorited(listing.id) ? "heart.fill" : "heart",
                                     iconColor: .orange,
-                                    action: { appState.toggleFavorite(listing.id) }
+                                    action: { handleAction { appState.toggleFavorite(listing.id) } }
                                 )
                                 CircularActionButton(
-                                    icon: "square.and.arrow.up.fill",
-                                    iconColor: Color.craigslistGreen,
+                                    icon: "square.and.arrow.up",
+                                    iconColor: .primary,
                                     action: { showShareSheet = true }
                                 )
                             }
@@ -252,31 +272,55 @@ struct ListingDetailView: View {
                     
                     VStack(spacing: 12) {
                         GhostActionButton(
-                            icon: "hand.thumbsup.fill",
+                            icon: appState.votedIDs.contains(listing.id) ? "hand.thumbsup.fill" : "hand.thumbsup",
                             title: appState.votedIDs.contains(listing.id) ? "Upvoted" : "Vote / Thumbs Up",
-                            action: { appState.toggleVoted(listing.id) },
+                            action: { handleAction { appState.toggleVoted(listing.id) } },
                             themeColor: .blue,
                             isActive: appState.votedIDs.contains(listing.id)
                         )
                         GhostActionButton(
-                            icon: "heart.fill",
+                            icon: appState.isFavorited(listing.id) ? "heart.fill" : "heart",
                             title: appState.isFavorited(listing.id) ? "Saved to Favorites" : "Save Listing",
-                            action: { appState.toggleFavorite(listing.id) },
+                            action: { handleAction { appState.toggleFavorite(listing.id) } },
                             themeColor: .orange,
                             isActive: appState.isFavorited(listing.id)
                         )
                         GhostActionButton(
-                            icon: "square.and.arrow.up.fill",
+                            icon: "square.and.arrow.up",
                             title: "Share Listing",
                             action: { showShareSheet = true },
-                            themeColor: Color.craigslistGreen
+                            themeColor: .primary
                         )
-                        GhostActionButton(
-                            icon: "flag",
-                            title: "Remove Listing",
-                            action: onDelete,
-                            themeColor: .gray
-                        )
+                        
+                        if showAllActions {
+                            GhostActionButton(
+                                icon: "eye.slash",
+                                title: "Hide",
+                                action: { handleAction { onDelete() } },
+                                themeColor: .primary
+                            )
+                            GhostActionButton(
+                                icon: "arrow.uturn.backward",
+                                title: "Undo",
+                                action: {
+                                    // Add Undo logic here
+                                },
+                                themeColor: .primary
+                            )
+                            GhostActionButton(
+                                icon: "flag",
+                                title: "Report Listing",
+                                action: { handleAction { } },
+                                isDestructive: true
+                            )
+                        }
+                        
+                        Button(action: { withAnimation { showAllActions.toggle() } }) {
+                            Text(showAllActions ? "Show Less" : "Show More Options")
+                                .font(.custom("Montserrat", size: 14).weight(.semibold))
+                                .foregroundColor(.secondary)
+                                .padding(.vertical, 8)
+                        }
                     }
                     .padding(.horizontal, 20)
                     
@@ -377,7 +421,7 @@ struct AttributeIconView: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: icon).font(.system(size: 24, weight: .light)).foregroundColor(.primary)
-            Text(title).font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary).multilineTextAlignment(.center).lineLimit(2)
+            Text(title).font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(Color(UIColor.secondaryLabel)).multilineTextAlignment(.center).lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .top)
     }

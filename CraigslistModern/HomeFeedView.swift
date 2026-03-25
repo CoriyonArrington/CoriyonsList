@@ -14,6 +14,7 @@ struct HomeFeedView: View {
     @AppStorage("isNearbyMode") private var isNearbyMode = true
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
+    @AppStorage("isSwipeViewEnabled") private var isSwipeViewEnabled = true
     
     let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
     
@@ -135,6 +136,16 @@ struct HomeFeedView: View {
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $isDetailPresented) {
                 ListingPagerView(listings: $appState.listings, filteredIDs: homeListings.map{$0.id}, selectedListingID: $selectedListingID)
+            }
+        }
+        .onAppear {
+            if !isSwipeViewEnabled && viewMode == .swipe {
+                viewMode = .gallery
+            }
+        }
+        .onChange(of: isSwipeViewEnabled) { newValue in
+            if !newValue && viewMode == .swipe {
+                viewMode = .gallery
             }
         }
     }
