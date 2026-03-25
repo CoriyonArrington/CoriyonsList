@@ -1,10 +1,26 @@
 import SwiftUI
 
+// MARK: - Global Enums
+enum SortOption: String, CaseIterable {
+    case bestMatch = "Best Match"
+    case priceLowToHigh = "Lowest Price"
+    case priceHighToLow = "Highest Price"
+    case closestFirst = "Closest First"
+    
+    var icon: String {
+        switch self {
+        case .bestMatch: return "sparkles"
+        case .priceLowToHigh: return "arrow.up.right"
+        case .priceHighToLow: return "arrow.down.right"
+        case .closestFirst: return "location.fill"
+        }
+    }
+}
+
 // MARK: - App Background Pattern
 struct CraigslistPattern: View {
     @Environment(\.colorScheme) var colorScheme
     
-    // Calculates a perfect grid based on screen size
     let columns = [
         GridItem(.flexible(), spacing: 0),
         GridItem(.flexible(), spacing: 0),
@@ -14,7 +30,6 @@ struct CraigslistPattern: View {
     
     var body: some View {
         GeometryReader { geo in
-            // Calculate enough rows to safely cover any screen height
             let rowCount = Int(geo.size.height / (geo.size.width / 4)) + 2
             let totalIcons = 4 * rowCount
             
@@ -28,7 +43,6 @@ struct CraigslistPattern: View {
                         .scaledToFit()
                         .frame(width: 36, height: 36)
                         .foregroundColor(colorScheme == .dark ? .white : .black)
-                        // Bumps Light Mode opacity so it's visible but subtle
                         .opacity(colorScheme == .dark ? 0.06 : 0.03)
                         .rotationEffect(.degrees(rotation))
                         .frame(height: geo.size.width / 4)
@@ -136,11 +150,15 @@ struct FilterAndViewBar: View {
     @EnvironmentObject var appState: AppState
     @Binding var viewMode: ViewMode
     @Binding var isNearbyMode: Bool
+    
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
+    @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
     
     @State private var showFilterSheet = false
     @State private var showViewSheet = false
     @State private var showLocationSheet = false
+    @State private var showSortSheet = false
+    @State private var showAIChat = false
     
     var currentCategoryIcon: String {
         if let cat = appState.selectedTopCategory,
@@ -166,6 +184,28 @@ struct FilterAndViewBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                
+                // 1. "Ask Craig" AI Button (Weight fixed to .medium)
+                Button(action: {
+                    let generator = UIImpactFeedbackGenerator(style: .light)
+                    generator.impactOccurred()
+                    showAIChat = true
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                        Text("Ask Craig").fixedSize(horizontal: true, vertical: false)
+                    }
+                    .font(.custom("Montserrat", size: 13).weight(.medium))
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Color.craigslistPurple)
+                    .cornerRadius(16)
+                    .foregroundColor(.white)
+                }
+                .sheet(isPresented: $showAIChat) {
+                    AIChatView().presentationDetents([.fraction(0.9), .large])
+                }
+                
+                // 2. Category Filter
                 Button(action: { showFilterSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: currentCategoryIcon)
@@ -180,6 +220,7 @@ struct FilterAndViewBar: View {
                 }
                 .sheet(isPresented: $showFilterSheet) { FilterSelectionSheet().presentationDetents([.medium, .large]) }
                 
+                // 3. Location Mode
                 Button(action: {
                     let generator = UIImpactFeedbackGenerator(style: .light)
                     generator.impactOccurred()
@@ -199,6 +240,22 @@ struct FilterAndViewBar: View {
                 }
                 .sheet(isPresented: $showLocationSheet) { LocationSelectionSheet().presentationDetents([.medium, .large]) }
                 
+                // 4. Sort Button
+                Button(action: { showSortSheet = true }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: sortOption.icon)
+                        Text(sortOption.rawValue).fixedSize(horizontal: true, vertical: false)
+                        Image(systemName: "chevron.down")
+                    }
+                    .font(.custom("Montserrat", size: 13).weight(.medium))
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Color.primary)
+                    .cornerRadius(16)
+                    .foregroundColor(Color(.systemBackground))
+                }
+                .sheet(isPresented: $showSortSheet) { SortSelectionSheet(sortOption: $sortOption).presentationDetents([.height(350)]) }
+                
+                // 5. View Mode
                 Button(action: { showViewSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: viewMode.icon)
@@ -217,6 +274,39 @@ struct FilterAndViewBar: View {
 }
 
 // MARK: - Sheets & Dropdowns
+struct SortSelectionSheet: View {
+    @Environment(\.dismiss) var dismiss
+    @Binding var sortOption: SortOption
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 12) {
+                Capsule().fill(Color.gray.opacity(0.3)).frame(width: 40, height: 5).padding(.top, 12)
+                HStack {
+                    Text("Sort By").font(.custom("Montserrat", size: 17).weight(.bold))
+                    Spacer()
+                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.primary)
+                }.padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 12)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(SortOption.allCases, id: \.self) { option in
+                    Button(action: { sortOption = option; dismiss() }) {
+                        HStack {
+                            Image(systemName: option.icon).foregroundColor(.primary).frame(width: 24, alignment: .leading)
+                            Text(option.rawValue).font(.custom("NunitoSans", size: 16).weight(.semibold)).foregroundColor(.primary)
+                            Spacer()
+                            if sortOption == option { Image(systemName: "checkmark").foregroundColor(.primary) }
+                        }
+                        .padding(.vertical, 16).padding(.horizontal, 16)
+                    }
+                    if option != SortOption.allCases.last { Divider().padding(.leading, 48) }
+                }
+            }.padding(.top, 8)
+            Spacer()
+        }.background(Color(.systemBackground))
+    }
+}
+
 struct ViewSelectionSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var viewMode: ViewMode

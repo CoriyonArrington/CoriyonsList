@@ -4,7 +4,7 @@ struct SwipeItem: Identifiable {
     let id: UUID
     let listing: Listing
     let zIndex: Double
-    var undoneAction: SwipeAction? = nil // Tracks direction for fly-in animation
+    var undoneAction: SwipeAction? = nil
 }
 
 enum SwipeAction {
@@ -55,7 +55,6 @@ struct SwipeFeedView: View {
             } else {
                 ForEach(displayItems, id: \.id) { item in
                     
-                    // Determines which side of the screen the card should fly in from
                     let flyInOffset: CGFloat = {
                         guard let action = item.undoneAction else { return 0 }
                         return action == .hide ? -500 : 500
@@ -67,9 +66,8 @@ struct SwipeFeedView: View {
                         canUndo: !actionHistory.isEmpty,
                         onUndo: {
                             guard let last = actionHistory.popLast() else { return }
-                            undoneItems[last.0] = last.1 // Log direction for transition
+                            undoneItems[last.0] = last.1
                             
-                            // Triggers the insertion transition by adding the view back to the state
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                 swipedIDs.remove(last.0)
                                 switch last.1 {
@@ -83,11 +81,10 @@ struct SwipeFeedView: View {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 _ = swipedIDs.insert(item.id)
                                 actionHistory.append((item.id, action))
-                                undoneItems.removeValue(forKey: item.id) // Clear old animation states
+                                undoneItems.removeValue(forKey: item.id)
                             }
                         }
                     )
-                    // Binds the specific asymmetric transition to make the card fly in
                     .transition(.asymmetric(insertion: .offset(x: flyInOffset, y: 0), removal: .identity))
                     .onTapGesture {
                         selectedListingID = item.id
@@ -178,9 +175,55 @@ struct SwipeListingCard: View {
                     }
                 }
                 
+                // REORDERED BUTTONS: Hide -> Thumbs Up -> Favorite -> Share -> Undo
                 HStack(spacing: 8) {
                     Spacer()
                     
+                    // 1. Hide (Replaced xmark with eye.slash.fill)
+                    Button(action: { triggerSwipe(action: .hide) }) {
+                        Image(systemName: "eye.slash.fill")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: 56)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    }
+                    
+                    // 2. Thumbs Up
+                    Button(action: { triggerSwipe(action: .vote) }) {
+                        Image(systemName: "hand.thumbsup.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.blue)
+                            .frame(width: 56, height: 56)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    }
+                    
+                    // 3. Favorite
+                    Button(action: { triggerSwipe(action: .favorite) }) {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.orange)
+                            .frame(width: 56, height: 56)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    }
+                    
+                    // 4. Share
+                    Button(action: { showShareSheet = true }) {
+                        Image(systemName: "square.and.arrow.up.fill")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(Color.craigslistGreen)
+                            .frame(width: 56, height: 56)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    }
+                    
+                    // 5. Undo
                     Button(action: onUndo) {
                         Image(systemName: "arrow.uturn.backward")
                             .font(.system(size: 22, weight: .bold))
@@ -192,45 +235,6 @@ struct SwipeListingCard: View {
                     }
                     .disabled(!canUndo)
                     
-                    Button(action: { triggerSwipe(action: .hide) }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                    }
-                    
-                    Button(action: { triggerSwipe(action: .vote) }) {
-                        Image(systemName: "hand.thumbsup.fill")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.blue)
-                            .frame(width: 56, height: 56)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                    }
-                    
-                    Button(action: { triggerSwipe(action: .favorite) }) {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.orange)
-                            .frame(width: 56, height: 56)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                    }
-                    
-                    Button(action: { showShareSheet = true }) {
-                        Image(systemName: "square.and.arrow.up.fill")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(Color.craigslistGreen)
-                            .frame(width: 56, height: 56)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                    }
                     Spacer()
                 }
             }

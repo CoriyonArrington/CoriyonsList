@@ -24,21 +24,26 @@ struct ChatView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    StatusActionBar(options: ["Active", "Hidden"], selection: $chatStatus)
-                        .padding(.top, 16)
-                        .padding(.bottom, 24)
-                    
-                    LazyVStack(spacing: 0) {
-                        ForEach(mockChats) { chat in
-                            ChatRow(chat: chat)
+            ZStack(alignment: .top) {
+                // Solid background for maximum focus, no pattern here
+                Color(.systemGroupedBackground).ignoresSafeArea()
+                
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        StatusActionBar(options: ["Active", "Hidden"], selection: $chatStatus)
+                            .padding(.top, 16)
+                            .padding(.bottom, 24)
+                        
+                        LazyVStack(spacing: 0) {
+                            ForEach(mockChats) { chat in
+                                ChatRow(chat: chat)
+                            }
                         }
                     }
                 }
-            }
-            .safeAreaInset(edge: .top) {
-                GlassHeader(searchText: $searchText, placeholder: "Search chat")
+                .safeAreaInset(edge: .top) {
+                    GlassHeader(searchText: $searchText, placeholder: "Search chat")
+                }
             }
         }
     }
@@ -59,7 +64,7 @@ struct ChatRow: View {
                 Text(chat.message).font(.custom("NunitoSans", size: 14).weight(.regular)).foregroundColor(.secondary).lineLimit(1)
             }
             Spacer()
-            Text(chat.time).font(.custom("NunitoSans", size: 12).weight(.regular)).foregroundColor(.secondary)
+            Text(chat.time).font(.custom("NunitoSans", size: 12).weight(.medium)).foregroundColor(.secondary)
         }
         .padding(.horizontal, 16).padding(.vertical, 16)
         Divider().padding(.leading, 80)
@@ -77,7 +82,7 @@ struct StatusActionBar: View {
                     Button(action: { withAnimation { selection = option } }) {
                         Text(option)
                             .font(.custom("Montserrat", size: 14).weight(.semibold))
-                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .background(selection == option ? Color(.systemBackground) : Color.clear)
                             .cornerRadius(12)
@@ -89,7 +94,6 @@ struct StatusActionBar: View {
             .padding(3)
             .background(Color(.systemGray5).opacity(0.6))
             .cornerRadius(14)
-            .frame(maxWidth: 240)
             
             Spacer()
         }

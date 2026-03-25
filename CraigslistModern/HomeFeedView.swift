@@ -13,6 +13,7 @@ struct HomeFeedView: View {
     @State private var viewMode: ViewMode = .swipe
     @AppStorage("isNearbyMode") private var isNearbyMode = true
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
+    @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
     
     let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
     
@@ -31,6 +32,18 @@ struct HomeFeedView: View {
         
         if isNearbyMode {
             results = results.filter { $0.distance <= nearbyDistance }
+        }
+        
+        // APPLIES THE GLOBAL SORTING SELECTION
+        switch sortOption {
+        case .bestMatch:
+            break // Keep default order
+        case .priceLowToHigh:
+            results.sort { $0.price < $1.price }
+        case .priceHighToLow:
+            results.sort { $0.price > $1.price }
+        case .closestFirst:
+            results.sort { $0.distance < $1.distance }
         }
         
         return results
