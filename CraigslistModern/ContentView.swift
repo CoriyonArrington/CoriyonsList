@@ -3,6 +3,15 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var appState = AppState()
     
+    // Globally forces the TabBar to remain solid and never go transparent on scroll edges
+    init() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor.systemBackground
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+    
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $appState.selectedTab) {
@@ -14,7 +23,7 @@ struct ContentView: View {
                     .tabItem { Label("Search", systemImage: "magnifyingglass") }
                     .tag(1)
                 
-                PostPlaceholderView()
+                PostView()
                     .tabItem { Label("Post", systemImage: "plus.circle.fill") }
                     .tag(2)
                 
@@ -27,8 +36,6 @@ struct ContentView: View {
                     .tag(4)
             }
             .tint(.craigslistPurple)
-            .toolbarBackground(.visible, for: .tabBar)
-            .toolbarBackground(.regularMaterial, for: .tabBar)
             
             if appState.showToast {
                 HStack(spacing: 8) {
@@ -48,39 +55,5 @@ struct ContentView: View {
             }
         }
         .environmentObject(appState)
-    }
-}
-
-// MARK: - New Post Placeholder
-struct PostPlaceholderView: View {
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 64))
-                    .foregroundColor(.craigslistPurple)
-                
-                Text("Create a new listing")
-                    .font(.custom("Montserrat", size: 22).weight(.bold))
-                
-                Text("Take photos, add a description, and post your item to the community in seconds.")
-                    .font(.custom("NunitoSans", size: 16).weight(.regular))
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 32)
-                
-                Button(action: {}) {
-                    Text("Start Posting")
-                        .font(.custom("Montserrat", size: 16).weight(.bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.craigslistPurple)
-                        .cornerRadius(16)
-                }
-                .padding(.horizontal, 32)
-                .padding(.top, 16)
-            }
-        }
     }
 }

@@ -70,6 +70,10 @@ struct HomeFeedView: View {
                 Color(viewMode == .map ? .black : .systemGroupedBackground)
                     .ignoresSafeArea()
                 
+                if viewMode != .map {
+                    CraigslistPattern()
+                }
+                
                 if viewMode == .map {
                     MapFeedView(
                         cameraPosition: $cameraPosition,
@@ -131,7 +135,8 @@ struct HomeFeedView: View {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundColor(Color.craigslistGreen)
                 }
                 VStack(spacing: 8) {
-                    Text("You're all caught up!").font(.custom("Montserrat", size: 24).weight(.bold))
+                    Text("You're all caught up!")
+                        .font(.custom("Montserrat", size: 22).weight(.bold))
                     Text("Try expanding your search radius, exploring other categories, or check back later for new listings.")
                         .font(.custom("NunitoSans", size: 16))
                         .foregroundColor(.secondary)
@@ -158,7 +163,7 @@ struct HomeFeedView: View {
                 if !trendingListings.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("Trending Nearby").font(.custom("Montserrat", size: 28).weight(.bold))
+                            Text("Trending Nearby").font(.custom("Montserrat", size: 22).weight(.bold))
                             Spacer()
                             Text("\(trendingListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
                         }
@@ -171,7 +176,7 @@ struct HomeFeedView: View {
                 if !recentListings.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text("Recently Listed").font(.custom("Montserrat", size: 28).weight(.bold))
+                            Text("Recently Listed").font(.custom("Montserrat", size: 22).weight(.bold))
                             Spacer()
                             Text("\(recentListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
                         }
@@ -211,7 +216,6 @@ struct HomeFeedView: View {
             }.padding(.horizontal, 16)
         } else if mode == .swipe {
             SwipeFeedView(listings: listings, selectedListingID: $selectedListingID, isDetailPresented: $isDetailPresented, proxy: proxy)
-                // Restored safely to strictly height.
                 .frame(height: 480)
         }
     }

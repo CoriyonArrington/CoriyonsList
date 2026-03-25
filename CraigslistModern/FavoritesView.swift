@@ -6,54 +6,59 @@ struct FavoritesView: View {
     @State private var isDetailPresented = false
     @State private var searchText = ""
     
-    // Now supports Favorites, Voted, and Hidden
     @State private var statusSelection = "Favorites"
     
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
     
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
-                    
-                    StatusActionBar(options: ["Favorites", "Voted", "Hidden"], selection: $statusSelection)
-                        .padding(.top, 16)
-                    
-                    let targetIDs = getTargetIDs()
-                    
-                    if targetIDs.isEmpty {
-                        VStack(spacing: 16) {
-                            Image(systemName: getEmptyIcon()).font(.system(size: 48)).foregroundColor(.gray)
-                            Text("No \(statusSelection.lowercased()) items yet").font(.custom("NunitoSans", size: 20).weight(.regular)).foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 100)
-                    } else {
-                        let filteredListings = appState.listings.filter { targetIDs.contains($0.id) }
+            ZStack(alignment: .top) {
+                Color(.systemGroupedBackground).ignoresSafeArea()
+                
+                CraigslistPattern()
+                
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 24) {
                         
-                        Text(getSectionTitle())
-                            .font(.custom("Montserrat", size: 28).weight(.bold))
-                            .padding(.horizontal, 16)
+                        StatusActionBar(options: ["Favorites", "Voted", "Hidden"], selection: $statusSelection)
+                            .padding(.top, 16)
                         
-                        if let first = filteredListings.first {
-                            FavoriteHeroCard(listing: first)
-                                .onTapGesture { selectedListingID = first.id; isDetailPresented = true }
-                                .padding(.horizontal, 16)
-                        }
+                        let targetIDs = getTargetIDs()
                         
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(filteredListings.dropFirst(), id: \.id) { listing in
-                                FavoriteGridCard(listing: listing)
-                                    .onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
+                        if targetIDs.isEmpty {
+                            VStack(spacing: 16) {
+                                Image(systemName: getEmptyIcon()).font(.system(size: 48)).foregroundColor(.gray)
+                                Text("No \(statusSelection.lowercased()) items yet").font(.custom("NunitoSans", size: 20).weight(.regular)).foregroundColor(.secondary)
                             }
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.top, 100)
+                        } else {
+                            let filteredListings = appState.listings.filter { targetIDs.contains($0.id) }
+                            
+                            Text(getSectionTitle())
+                                .font(.custom("Montserrat", size: 22).weight(.bold))
+                                .padding(.horizontal, 16)
+                            
+                            if let first = filteredListings.first {
+                                FavoriteHeroCard(listing: first)
+                                    .onTapGesture { selectedListingID = first.id; isDetailPresented = true }
+                                    .padding(.horizontal, 16)
+                            }
+                            
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(filteredListings.dropFirst(), id: \.id) { listing in
+                                    FavoriteGridCard(listing: listing)
+                                        .onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
+                                }
+                            }
+                            .padding(.horizontal, 16)
                         }
-                        .padding(.horizontal, 16)
+                        Spacer(minLength: 40)
                     }
-                    Spacer(minLength: 40)
                 }
-            }
-            .safeAreaInset(edge: .top) {
-                GlassHeader(searchText: $searchText, placeholder: "Search activity")
+                .safeAreaInset(edge: .top) {
+                    GlassHeader(searchText: $searchText, placeholder: "Search activity")
+                }
             }
             .sheet(isPresented: $isDetailPresented) {
                 ListingPagerView(listings: $appState.listings, filteredIDs: Array(getTargetIDs()), selectedListingID: $selectedListingID)

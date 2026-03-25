@@ -11,9 +11,7 @@ extension Color {
     
     static let craigslistGreen = Color(UIColor { traitCollection in
         return traitCollection.userInterfaceStyle == .dark
-            // Slightly deeper dark mode green, passes WCAG AA on black
             ? UIColor(red: 0.20, green: 0.78, blue: 0.35, alpha: 1.0)
-            // Lighter light mode green, passes WCAG AA on white
             : UIColor(red: 0.12, green: 0.55, blue: 0.22, alpha: 1.0)
     })
 }
@@ -135,13 +133,22 @@ class AppState: ObservableObject {
         }
     }
     
+    // FIX: Made these true toggles so the Undo button can accurately remove them
     func toggleHidden(_ id: UUID) {
-        hiddenIDs.insert(id)
+        if hiddenIDs.contains(id) {
+            hiddenIDs.remove(id)
+        } else {
+            hiddenIDs.insert(id)
+        }
     }
     
     func toggleVoted(_ id: UUID) {
-        votedIDs.insert(id)
-        triggerToast(message: "Upvoted Listing")
+        if votedIDs.contains(id) {
+            votedIDs.remove(id)
+        } else {
+            votedIDs.insert(id)
+            triggerToast(message: "Upvoted Listing")
+        }
     }
     
     func isFavorited(_ id: UUID) -> Bool { return favoriteIDs.contains(id) }

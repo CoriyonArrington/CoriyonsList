@@ -170,24 +170,19 @@ struct ListingDetailView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .top, spacing: 16) {
                             Text(listing.title)
-                                .font(.custom("Montserrat", size: 28).weight(.bold))
+                                .font(.custom("Montserrat", size: 24).weight(.bold))
                                 .foregroundColor(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Text("$\(listing.price)")
-                                .font(.custom("Montserrat", size: 28).weight(.heavy))
+                                .font(.custom("Montserrat", size: 24).weight(.heavy))
                                 .foregroundColor(Color.craigslistGreen)
                                 .layoutPriority(1)
                         }
-                        Text(listing.neighborhood)
-                            .font(.custom("NunitoSans", size: 16).weight(.medium))
-                            .foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 20).padding(.top, 24)
                     
                     HStack(alignment: .top) {
-                        // REORDERED: Category -> Distance -> Condition -> Time
-                        
                         VStack(spacing: 10) {
                             Image(systemName: "tag").font(.system(size: 24, weight: .light)).foregroundColor(getCategoryColor())
                             Text(listing.category)
@@ -203,7 +198,7 @@ struct ListingDetailView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .top)
                         
-                        AttributeIconView(icon: "location", title: "\(String(format: "%.1f", listing.distance)) mi")
+                        AttributeIconView(icon: "location", title: "\(listing.neighborhood)\n\(String(format: "%.1f", listing.distance)) mi")
                         
                         AttributeIconView(icon: "sparkles", title: listing.condition)
                         
@@ -221,7 +216,6 @@ struct ListingDetailView: View {
                     Divider().padding(.horizontal, 20)
                     
                     HStack(alignment: .top, spacing: 16) {
-                        
                         if let url = URL(string: listing.sellerAvatar) {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image {
@@ -299,6 +293,7 @@ struct ListingDetailView: View {
                 }
             }
             .ignoresSafeArea(edges: .top)
+            .background(Color(.systemBackground))
             
             VStack(spacing: 12) {
                 Button(action: {}) {
@@ -315,7 +310,16 @@ struct ListingDetailView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 32).background(Color(.systemBackground).shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5))
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 32)
+            .background(
+                ZStack {
+                    Color(.systemBackground)
+                    CraigslistPattern()
+                }
+                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5)
+            )
         }
         .background(Color(.systemBackground))
         .sheet(isPresented: $showShareSheet) {
@@ -359,7 +363,7 @@ struct GhostActionButton: View {
                 Image(systemName: icon)
                 Text(title)
             }
-            .font(.custom("Montserrat", size: 16).weight(.semibold))
+            .font(.custom("Montserrat", size: 16).weight(.bold))
             .foregroundColor(isActive ? Color(.systemBackground) : color)
             .frame(maxWidth: .infinity).frame(height: 56)
             .background(isActive ? color : color.opacity(0.1))
@@ -373,7 +377,7 @@ struct AttributeIconView: View {
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: icon).font(.system(size: 24, weight: .light)).foregroundColor(.primary)
-            Text(title).font(.custom("NunitoSans", size: 13).weight(.semibold)).foregroundColor(.secondary).multilineTextAlignment(.center).lineLimit(2)
+            Text(title).font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary).multilineTextAlignment(.center).lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .top)
     }

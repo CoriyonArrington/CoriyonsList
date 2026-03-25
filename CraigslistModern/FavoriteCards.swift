@@ -35,7 +35,7 @@ struct FavoriteHeroCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(appState.isFavorited(listing.id) ? .red : .primary)
+                        .foregroundColor(appState.isFavorited(listing.id) ? .orange : .primary)
                         .frame(width: 36, height: 36)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -110,7 +110,7 @@ struct FavoriteGridCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(appState.isFavorited(listing.id) ? .red : .primary)
+                        .foregroundColor(appState.isFavorited(listing.id) ? .orange : .primary)
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())

@@ -17,6 +17,7 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
+                // Solid background for maximum focus, no pattern here
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 
                 ScrollView(showsIndicators: false) {
@@ -121,7 +122,7 @@ struct SearchView: View {
     private var recentSearchesView: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Recent Searches").font(.custom("Montserrat", size: 20).weight(.bold))
+                Text("Recent Searches").font(.custom("Montserrat", size: 22).weight(.bold))
             }.padding(.horizontal, 16)
             
             let recentListings = Array(searchListings.prefix(3))

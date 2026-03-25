@@ -1,5 +1,46 @@
 import SwiftUI
 
+// MARK: - App Background Pattern
+struct CraigslistPattern: View {
+    @Environment(\.colorScheme) var colorScheme
+    
+    // Calculates a perfect grid based on screen size
+    let columns = [
+        GridItem(.flexible(), spacing: 0),
+        GridItem(.flexible(), spacing: 0),
+        GridItem(.flexible(), spacing: 0),
+        GridItem(.flexible(), spacing: 0)
+    ]
+    
+    var body: some View {
+        GeometryReader { geo in
+            // Calculate enough rows to safely cover any screen height
+            let rowCount = Int(geo.size.height / (geo.size.width / 4)) + 2
+            let totalIcons = 4 * rowCount
+            
+            LazyVGrid(columns: columns, spacing: 0) {
+                ForEach(0..<totalIcons, id: \.self) { index in
+                    let rotation = Double((index * 37) % 360)
+                    
+                    Image("CraigslistIcon")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 36, height: 36)
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                        // Bumps Light Mode opacity so it's visible but subtle
+                        .opacity(colorScheme == .dark ? 0.06 : 0.03)
+                        .rotationEffect(.degrees(rotation))
+                        .frame(height: geo.size.width / 4)
+                }
+            }
+            .offset(x: -10, y: -10)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}
+
 // MARK: - Headers & Action Bars
 struct GlassHeader: View {
     @EnvironmentObject var appState: AppState
@@ -74,9 +115,11 @@ struct GlassHeader: View {
             .padding(.horizontal, 16).padding(.bottom, 12)
         }
         .background(
-            Rectangle()
-                .fill(.ultraThickMaterial)
-                .ignoresSafeArea(.all, edges: .top)
+            ZStack {
+                Color(.systemBackground).opacity(0.95)
+            }
+            .background(.ultraThinMaterial)
+            .ignoresSafeArea(.all, edges: .top)
         )
         .overlay(Divider().opacity(0.3), alignment: .bottom)
         .onAppear {
@@ -123,14 +166,13 @@ struct FilterAndViewBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                // FIX: "All Categories" fallback now uses Color.primary for a strong, distinct native look
                 Button(action: { showFilterSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: currentCategoryIcon)
                         Text(appState.selectedTopCategory ?? "All Categories").fixedSize(horizontal: true, vertical: false)
                         Image(systemName: "chevron.down")
                     }
-                    .font(.custom("Montserrat", size: 13).weight(.semibold))
+                    .font(.custom("Montserrat", size: 13).weight(.medium))
                     .padding(.horizontal, 12).padding(.vertical, 8)
                     .background(appState.selectedTopCategory != nil ? mutedColor : Color.primary)
                     .cornerRadius(16)
@@ -148,7 +190,7 @@ struct FilterAndViewBar: View {
                         Text(isNearbyMode ? "Nearby (\(Int(nearbyDistance)) mi)" : "Nearby").fixedSize(horizontal: true, vertical: false)
                         Image(systemName: "chevron.down")
                     }
-                    .font(.custom("Montserrat", size: 13).weight(.semibold))
+                    .font(.custom("Montserrat", size: 13).weight(.medium))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(isNearbyMode ? Color.primary : Color(.systemGray5).opacity(0.8))
@@ -163,7 +205,7 @@ struct FilterAndViewBar: View {
                         Text(viewMode.rawValue).fixedSize(horizontal: true, vertical: false)
                         Image(systemName: "chevron.down")
                     }
-                    .font(.custom("Montserrat", size: 13).weight(.semibold))
+                    .font(.custom("Montserrat", size: 13).weight(.medium))
                     .padding(.horizontal, 12).padding(.vertical, 8).background(Color(.systemGray5).opacity(0.8)).cornerRadius(16).foregroundColor(.primary)
                 }
                 .sheet(isPresented: $showViewSheet) { ViewSelectionSheet(viewMode: $viewMode).presentationDetents([.height(350)]) }
@@ -268,7 +310,7 @@ struct FilterSelectionSheet: View {
                         }
                         
                         Text("All")
-                            .font(.custom(appState.selectedTopCategory == nil ? "Montserrat" : "NunitoSans", size: 12).weight(appState.selectedTopCategory == nil ? .bold : .semibold))
+                            .font(.custom(appState.selectedTopCategory == nil ? "Montserrat" : "NunitoSans", size: 12).weight(appState.selectedTopCategory == nil ? .bold : .medium))
                             .foregroundColor(appState.selectedTopCategory == nil ? .primary : .secondary)
                     }
                     .frame(width: 76)
@@ -296,7 +338,7 @@ struct FilterSelectionSheet: View {
                     }) {
                         HStack {
                             Text(sub)
-                                .font(.custom("NunitoSans", size: 16).weight(appState.selectedSubCategory == sub ? .bold : .semibold))
+                                .font(.custom("NunitoSans", size: 16).weight(appState.selectedSubCategory == sub ? .bold : .medium))
                                 .foregroundColor(appState.selectedSubCategory == sub ? .primary : .primary)
                             Spacer()
                             if appState.selectedSubCategory == sub {
@@ -538,7 +580,7 @@ struct RecentSearchRow: View {
                 Image(systemName: icon).font(.system(size: 16, weight: .semibold)).foregroundColor(isItem ? Color.craigslistPurple : .secondary)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.custom("Montserrat", size: 16).weight(.semibold)).foregroundColor(.primary)
+                Text(title).font(.custom("Montserrat", size: 16).weight(.bold)).foregroundColor(.primary)
                 Text(subtitle).font(.custom("NunitoSans", size: 14).weight(.regular)).foregroundColor(.secondary)
             }
             Spacer()

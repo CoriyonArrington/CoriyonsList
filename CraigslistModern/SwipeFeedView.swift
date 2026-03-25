@@ -4,6 +4,7 @@ struct SwipeItem: Identifiable {
     let id: UUID
     let listing: Listing
     let zIndex: Double
+    var undoneAction: SwipeAction? = nil // Tracks direction for fly-in animation
 }
 
 enum SwipeAction {
@@ -21,6 +22,10 @@ struct SwipeFeedView: View {
     var proxy: ScrollViewProxy? = nil
     @State private var swipedIDs: Set<UUID> = []
     
+    // TRACKS HISTORY FOR UNDO AND ANIMATIONS
+    @State private var actionHistory: [(UUID, SwipeAction)] = []
+    @State private var undoneItems: [UUID: SwipeAction] = [:]
+    
     private var displayItems: [SwipeItem] {
         var active: [Listing] = []
         
@@ -36,7 +41,8 @@ struct SwipeFeedView: View {
         
         for i in 0..<count {
             let listing = active[i]
-            let item = SwipeItem(id: listing.id, listing: listing, zIndex: Double(3 - i))
+            let action = undoneItems[listing.id]
+            let item = SwipeItem(id: listing.id, listing: listing, zIndex: Double(3 - i), undoneAction: action)
             result.append(item)
         }
         return result
@@ -48,15 +54,41 @@ struct SwipeFeedView: View {
                 Color.clear
             } else {
                 ForEach(displayItems, id: \.id) { item in
+                    
+                    // Determines which side of the screen the card should fly in from
+                    let flyInOffset: CGFloat = {
+                        guard let action = item.undoneAction else { return 0 }
+                        return action == .hide ? -500 : 500
+                    }()
+                    
                     SwipeListingCard(
                         listing: item.listing,
                         proxy: proxy,
-                        onRemove: {
+                        canUndo: !actionHistory.isEmpty,
+                        onUndo: {
+                            guard let last = actionHistory.popLast() else { return }
+                            undoneItems[last.0] = last.1 // Log direction for transition
+                            
+                            // Triggers the insertion transition by adding the view back to the state
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                swipedIDs.remove(last.0)
+                                switch last.1 {
+                                case .hide: appState.toggleHidden(last.0)
+                                case .vote: appState.toggleVoted(last.0)
+                                case .favorite: appState.toggleFavorite(last.0)
+                                }
+                            }
+                        },
+                        onRemove: { action in
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 _ = swipedIDs.insert(item.id)
+                                actionHistory.append((item.id, action))
+                                undoneItems.removeValue(forKey: item.id) // Clear old animation states
                             }
                         }
                     )
+                    // Binds the specific asymmetric transition to make the card fly in
+                    .transition(.asymmetric(insertion: .offset(x: flyInOffset, y: 0), removal: .identity))
                     .onTapGesture {
                         selectedListingID = item.id
                         isDetailPresented = true
@@ -74,7 +106,10 @@ struct SwipeListingCard: View {
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     var listing: Listing
     var proxy: ScrollViewProxy?
-    var onRemove: () -> Void
+    
+    var canUndo: Bool = false
+    var onUndo: () -> Void = {}
+    var onRemove: (SwipeAction) -> Void
     
     @State private var offset: CGSize = .zero
     @State private var showShareSheet = false
@@ -96,7 +131,6 @@ struct SwipeListingCard: View {
                     }
                 )
                 .clipped()
-                // Stronger overlay gradient starting slightly higher for perfect legibility
                 .overlay(
                     LinearGradient(
                         gradient: Gradient(colors: [.clear, .black.opacity(0.5), .black]),
@@ -114,16 +148,16 @@ struct SwipeListingCard: View {
                         Text("Just Listed").font(.custom("NunitoSans", size: 12).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 10).padding(.vertical, 6).background(.ultraThickMaterial).clipShape(Capsule())
                     }
                     Spacer()
-                }.padding(20)
+                }.padding(16)
                 Spacer()
             }
             
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .bottom) {
-                        Text(listing.title).font(.custom("Montserrat", size: 28).weight(.bold)).foregroundColor(.white).lineLimit(2)
+                        Text(listing.title).font(.custom("Montserrat", size: 24).weight(.bold)).foregroundColor(.white).lineLimit(2)
                         Spacer()
-                        Text("$\(listing.price)").font(.custom("Montserrat", size: 26).weight(.heavy)).foregroundColor(Color.craigslistGreen)
+                        Text("$\(listing.price)").font(.custom("Montserrat", size: 24).weight(.heavy)).foregroundColor(Color.craigslistGreen)
                     }
                     HStack(alignment: .center, spacing: 8) {
                         if let url = URL(string: listing.sellerAvatar) {
@@ -144,34 +178,63 @@ struct SwipeListingCard: View {
                     }
                 }
                 
-                HStack(spacing: 20) {
+                HStack(spacing: 8) {
                     Spacer()
+                    
+                    Button(action: onUndo) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(canUndo ? .white : Color.white.opacity(0.3))
+                            .frame(width: 56, height: 56)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    }
+                    .disabled(!canUndo)
+                    
                     Button(action: { triggerSwipe(action: .hide) }) {
-                        Image(systemName: "xmark").font(.system(size: 24, weight: .bold)).foregroundColor(.gray)
-                            .frame(width: 60, height: 60).background(Color(.systemBackground)).clipShape(Circle()).shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: 56)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     
                     Button(action: { triggerSwipe(action: .vote) }) {
-                        Image(systemName: "hand.thumbsup.fill").font(.system(size: 24, weight: .bold)).foregroundColor(.blue)
-                            .frame(width: 60, height: 60).background(Color(.systemBackground)).clipShape(Circle()).shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        Image(systemName: "hand.thumbsup.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.blue)
+                            .frame(width: 56, height: 56)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     
                     Button(action: { triggerSwipe(action: .favorite) }) {
                         Image(systemName: "heart.fill")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.orange) // SOLID ORANGE
-                            .frame(width: 60, height: 60).background(Color(.systemBackground)).clipShape(Circle()).shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.orange)
+                            .frame(width: 56, height: 56)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     
                     Button(action: { showShareSheet = true }) {
-                        Image(systemName: "square.and.arrow.up.fill").font(.system(size: 22, weight: .bold)).foregroundColor(Color.craigslistGreen)
-                            .frame(width: 60, height: 60).background(Color(.systemBackground)).clipShape(Circle()).shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        Image(systemName: "square.and.arrow.up.fill")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(Color.craigslistGreen)
+                            .frame(width: 56, height: 56)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     Spacer()
                 }
             }
-            .padding(20)
-            // Forces all dynamic colors in this stack (like craigslistGreen) to render their vibrant Dark Mode variants, ignoring system theme!
+            .padding(16)
             .environment(\.colorScheme, .dark)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -233,7 +296,7 @@ struct SwipeListingCard: View {
             case .favorite: appState.toggleFavorite(listing.id)
             }
             offset = .zero
-            onRemove()
+            onRemove(action)
         }
     }
 }
