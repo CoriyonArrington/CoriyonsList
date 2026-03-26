@@ -1,11 +1,16 @@
 import SwiftUI
 import CoreText
+import Clarity // Added Clarity import
 
 @main
 struct CraigslistModernApp: App {
     
     init() {
         registerCustomFonts()
+        
+        // Initialize Microsoft Clarity for interaction tracking
+        let clarityConfig = ClarityConfig(projectId: "w1lmxm28wt")
+        ClaritySDK.initialize(config: clarityConfig)
     }
     
     var body: some Scene {

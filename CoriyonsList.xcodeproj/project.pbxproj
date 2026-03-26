@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		6577D47C2F74DC9D001F8270 /* Clarity in Frameworks */ = {isa = PBXBuildFile; productRef = 6577D47B2F74DC9D001F8270 /* Clarity */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		654553B02F6545660071D6D9 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,9 +28,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		654553A22F6545650071D6D9 /* CraigslistModern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CraigslistModern.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		654553AF2F6545660071D6D9 /* CraigslistModernTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CraigslistModernTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		654553B92F6545660071D6D9 /* CraigslistModernUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CraigslistModernUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		654553A22F6545650071D6D9 /* CoriyonsList.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoriyonsList.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		654553AF2F6545660071D6D9 /* CoriyonsListTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoriyonsListTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		654553B92F6545660071D6D9 /* CoriyonsListUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoriyonsListUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6577D47C2F74DC9D001F8270 /* Clarity in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,9 +90,9 @@
 		654553A32F6545650071D6D9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				654553A22F6545650071D6D9 /* CraigslistModern.app */,
-				654553AF2F6545660071D6D9 /* CraigslistModernTests.xctest */,
-				654553B92F6545660071D6D9 /* CraigslistModernUITests.xctest */,
+				654553A22F6545650071D6D9 /* CoriyonsList.app */,
+				654553AF2F6545660071D6D9 /* CoriyonsListTests.xctest */,
+				654553B92F6545660071D6D9 /* CoriyonsListUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,9 +100,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		654553A12F6545650071D6D9 /* CraigslistModern */ = {
+		654553A12F6545650071D6D9 /* CoriyonsList */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 654553C32F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CraigslistModern" */;
+			buildConfigurationList = 654553C32F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CoriyonsList" */;
 			buildPhases = (
 				6545539E2F6545650071D6D9 /* Sources */,
 				6545539F2F6545650071D6D9 /* Frameworks */,
@@ -110,16 +115,17 @@
 			fileSystemSynchronizedGroups = (
 				654553A42F6545650071D6D9 /* CraigslistModern */,
 			);
-			name = CraigslistModern;
+			name = CoriyonsList;
 			packageProductDependencies = (
+				6577D47B2F74DC9D001F8270 /* Clarity */,
 			);
 			productName = CraigslistModern;
-			productReference = 654553A22F6545650071D6D9 /* CraigslistModern.app */;
+			productReference = 654553A22F6545650071D6D9 /* CoriyonsList.app */;
 			productType = "com.apple.product-type.application";
 		};
-		654553AE2F6545660071D6D9 /* CraigslistModernTests */ = {
+		654553AE2F6545660071D6D9 /* CoriyonsListTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 654553C62F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CraigslistModernTests" */;
+			buildConfigurationList = 654553C62F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CoriyonsListTests" */;
 			buildPhases = (
 				654553AB2F6545660071D6D9 /* Sources */,
 				654553AC2F6545660071D6D9 /* Frameworks */,
@@ -133,16 +139,16 @@
 			fileSystemSynchronizedGroups = (
 				654553B22F6545660071D6D9 /* CraigslistModernTests */,
 			);
-			name = CraigslistModernTests;
+			name = CoriyonsListTests;
 			packageProductDependencies = (
 			);
 			productName = CraigslistModernTests;
-			productReference = 654553AF2F6545660071D6D9 /* CraigslistModernTests.xctest */;
+			productReference = 654553AF2F6545660071D6D9 /* CoriyonsListTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		654553B82F6545660071D6D9 /* CraigslistModernUITests */ = {
+		654553B82F6545660071D6D9 /* CoriyonsListUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 654553C92F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CraigslistModernUITests" */;
+			buildConfigurationList = 654553C92F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CoriyonsListUITests" */;
 			buildPhases = (
 				654553B52F6545660071D6D9 /* Sources */,
 				654553B62F6545660071D6D9 /* Frameworks */,
@@ -156,11 +162,11 @@
 			fileSystemSynchronizedGroups = (
 				654553BC2F6545660071D6D9 /* CraigslistModernUITests */,
 			);
-			name = CraigslistModernUITests;
+			name = CoriyonsListUITests;
 			packageProductDependencies = (
 			);
 			productName = CraigslistModernUITests;
-			productReference = 654553B92F6545660071D6D9 /* CraigslistModernUITests.xctest */;
+			productReference = 654553B92F6545660071D6D9 /* CoriyonsListUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -186,7 +192,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 6545539D2F6545650071D6D9 /* Build configuration list for PBXProject "CraigslistModern" */;
+			buildConfigurationList = 6545539D2F6545650071D6D9 /* Build configuration list for PBXProject "CoriyonsList" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -195,14 +201,17 @@
 			);
 			mainGroup = 654553992F6545650071D6D9;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6577D47A2F74DC9D001F8270 /* XCRemoteSwiftPackageReference "clarity-apps" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 654553A32F6545650071D6D9 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				654553A12F6545650071D6D9 /* CraigslistModern */,
-				654553AE2F6545660071D6D9 /* CraigslistModernTests */,
-				654553B82F6545660071D6D9 /* CraigslistModernUITests */,
+				654553A12F6545650071D6D9 /* CoriyonsList */,
+				654553AE2F6545660071D6D9 /* CoriyonsListTests */,
+				654553B82F6545660071D6D9 /* CoriyonsListUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -258,12 +267,12 @@
 /* Begin PBXTargetDependency section */
 		654553B12F6545660071D6D9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 654553A12F6545650071D6D9 /* CraigslistModern */;
+			target = 654553A12F6545650071D6D9 /* CoriyonsList */;
 			targetProxy = 654553B02F6545660071D6D9 /* PBXContainerItemProxy */;
 		};
 		654553BB2F6545660071D6D9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 654553A12F6545650071D6D9 /* CraigslistModern */;
+			target = 654553A12F6545650071D6D9 /* CoriyonsList */;
 			targetProxy = 654553BA2F6545660071D6D9 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -396,11 +405,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 644Z739Q37;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = CoriyonsList;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.shopping";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -411,11 +421,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.coriyon.CoriyonsList;
+				PRODUCT_BUNDLE_IDENTIFIER = com.coriyon.CraigslistModern;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -425,11 +439,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 644Z739Q37;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = CoriyonsList;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.shopping";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -440,11 +455,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.coriyon.CoriyonsList;
+				PRODUCT_BUNDLE_IDENTIFIER = com.coriyon.CraigslistModern;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -463,7 +482,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CraigslistModern.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CraigslistModern";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CoriyonsList.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CoriyonsList";
 			};
 			name = Debug;
 		};
@@ -482,7 +501,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CraigslistModern.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CraigslistModern";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CoriyonsList.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CoriyonsList";
 			};
 			name = Release;
 		};
@@ -523,7 +542,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		6545539D2F6545650071D6D9 /* Build configuration list for PBXProject "CraigslistModern" */ = {
+		6545539D2F6545650071D6D9 /* Build configuration list for PBXProject "CoriyonsList" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				654553C12F6545660071D6D9 /* Debug */,
@@ -532,7 +551,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		654553C32F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CraigslistModern" */ = {
+		654553C32F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CoriyonsList" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				654553C42F6545660071D6D9 /* Debug */,
@@ -541,7 +560,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		654553C62F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CraigslistModernTests" */ = {
+		654553C62F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CoriyonsListTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				654553C72F6545660071D6D9 /* Debug */,
@@ -550,7 +569,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		654553C92F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CraigslistModernUITests" */ = {
+		654553C92F6545660071D6D9 /* Build configuration list for PBXNativeTarget "CoriyonsListUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				654553CA2F6545660071D6D9 /* Debug */,
@@ -560,6 +579,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		6577D47A2F74DC9D001F8270 /* XCRemoteSwiftPackageReference "clarity-apps" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/microsoft/clarity-apps";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.4.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		6577D47B2F74DC9D001F8270 /* Clarity */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6577D47A2F74DC9D001F8270 /* XCRemoteSwiftPackageReference "clarity-apps" */;
+			productName = Clarity;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 6545539A2F6545650071D6D9 /* Project object */;
 }
