@@ -1,5 +1,90 @@
 import SwiftUI
 
+// MARK: - THEME ENGINE (Design System)
+struct Theme {
+    // 1. Original Brand Colors Reverted
+    struct Colors {
+        static let primary = Color.craigslistPurple
+        static let success = Color.craigslistGreen
+        static let surfaceCard = Color(.systemBackground)
+        static let surfaceBackground = Color(.systemGroupedBackground)
+        static let surfaceGray = Color(.systemGray5)
+        static let inputBackground = Color(.systemGray6) // Elevated background for better Dark Mode contrast
+        static let textSecondary = Color.secondary
+        static let actionPrimary = Color.craigslistPurple
+    }
+    
+    // 2. Major Third Typographic Scale (Base 18pt, Ratio 1.250)
+    struct Typography {
+        static func display() -> Font { .custom("Montserrat", size: 44).weight(.bold) }
+        static func headingXL() -> Font { .custom("Montserrat", size: 35).weight(.bold) }
+        static func headingL() -> Font { .custom("Montserrat", size: 28).weight(.bold) }
+        static func headingM() -> Font { .custom("Montserrat", size: 23).weight(.bold) }
+        
+        static func body(weight: Font.Weight = .regular) -> Font { .custom("NunitoSans", size: 18).weight(weight) }
+        static func caption(weight: Font.Weight = .regular) -> Font { .custom("NunitoSans", size: 14).weight(weight) }
+        static func helper(weight: Font.Weight = .regular) -> Font { .custom("NunitoSans", size: 11).weight(weight) }
+    }
+    
+    // 3. Strict 8pt Spacing Grid
+    struct Spacing {
+        static let screenMargin: CGFloat = 24
+        static let gutter: CGFloat = 16
+        static let small: CGFloat = 8
+        static let medium: CGFloat = 16
+        static let large: CGFloat = 24
+        static let section: CGFloat = 40
+    }
+    
+    // 4. Component Radii
+    struct Radius {
+        static let small: CGFloat = 12 // Buttons & Inputs
+        static let medium: CGFloat = 16 // Cards
+    }
+}
+
+// MARK: - REUSABLE STYLES & MODIFIERS
+
+struct MSPInputStyle: ViewModifier {
+    var isFocused: Bool
+    
+    func body(content: Content) -> some View {
+        content
+            .font(Theme.Typography.body())
+            .padding(.horizontal, Theme.Spacing.medium)
+            .frame(minHeight: 56)
+            .background(Theme.Colors.inputBackground) // Applied new input color
+            .cornerRadius(Theme.Radius.small)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.small)
+                    .stroke(isFocused ? Theme.Colors.actionPrimary : Color.primary.opacity(0.1), lineWidth: isFocused ? 2 : 1)
+            )
+    }
+}
+
+struct MSPPrimaryButtonStyle: ButtonStyle {
+    var isEnabled: Bool = true
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.Typography.body(weight: .bold))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 56)
+            .background(isEnabled ? Theme.Colors.primary : Color.gray.opacity(0.3))
+            .cornerRadius(Theme.Radius.small)
+            .shadow(color: isEnabled ? Theme.Colors.primary.opacity(0.15) : .clear, radius: 8, x: 0, y: 4)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+extension View {
+    func mspInput(isFocused: Bool) -> some View {
+        self.modifier(MSPInputStyle(isFocused: isFocused))
+    }
+}
+
 // MARK: - Global Enums
 enum SortOption: String, CaseIterable {
     case bestMatch = "Best Match"
@@ -43,7 +128,7 @@ struct CraigslistPattern: View {
                         .scaledToFit()
                         .frame(width: 36, height: 36)
                         .foregroundColor(colorScheme == .dark ? .white : .black)
-                        .opacity(colorScheme == .dark ? 0.06 : 0.03)
+                        .opacity(colorScheme == .dark ? 0.04 : 0.02)
                         .rotationEffect(.degrees(rotation))
                         .frame(height: geo.size.width / 4)
                 }
@@ -64,54 +149,57 @@ struct GlassHeader: View {
     @FocusState private var isFocused: Bool
     var onTapped: () -> Void = {}
     var onCancel: (() -> Void)? = nil
+    
     @State private var showLocationSheet = false
     @State private var showAccountSheet = false
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Theme.Spacing.medium) {
             HStack {
                 Image("CraigslistIcon")
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 24, height: 24)
-                    .foregroundColor(Color.craigslistPurple)
+                    .foregroundColor(Theme.Colors.primary)
                 
                 Button(action: { showLocationSheet = true }) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Theme.Spacing.small) {
                         Image(systemName: "location.fill").foregroundColor(.primary).font(.system(size: 14))
                         Text(appState.selectedLocation)
-                            .font(.custom("Montserrat", size: 15).weight(.bold))
+                            .font(Theme.Typography.body(weight: .bold))
                             .foregroundColor(.primary)
-                        Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).foregroundColor(.secondary)
+                        Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
                     }
                 }
                 .sheet(isPresented: $showLocationSheet) { LocationSelectionSheet().presentationDetents([.medium, .large]) }
                 Spacer()
                 
                 Button(action: { showAccountSheet = true }) {
-                    Image(systemName: "person.circle.fill").resizable().frame(width: 30, height: 30).foregroundColor(Color.craigslistPurple)
+                    Image(systemName: "person.circle.fill").resizable().frame(width: 32, height: 32).foregroundColor(Theme.Colors.primary)
                 }
                 .sheet(isPresented: $showAccountSheet) {
                     AccountView().presentationDetents([.medium, .large])
                 }
             }
-            .padding(.horizontal, 16).padding(.top, 12)
+            .padding(.horizontal, Theme.Spacing.screenMargin)
+            .padding(.top, Theme.Spacing.small)
             
-            HStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    Image(systemName: "magnifyingglass").font(.system(size: 18)).foregroundColor(.secondary)
+            HStack(spacing: Theme.Spacing.medium) {
+                HStack(spacing: Theme.Spacing.small) {
+                    Image(systemName: "magnifyingglass").font(.system(size: 18)).foregroundColor(Theme.Colors.textSecondary)
                     if autoFocus {
                         TextField(placeholder, text: $searchText)
                             .focused($isFocused)
-                            .font(.custom("NunitoSans", size: 16).weight(.regular))
+                            .font(Theme.Typography.body())
                             .onChange(of: searchText) { newValue in
                                 appState.autoSelectCategory(for: newValue)
                             }
                     } else {
                         Text(placeholder)
-                            .font(.custom("NunitoSans", size: 16).weight(.regular))
-                            .foregroundColor(searchText.isEmpty ? .secondary : .primary).frame(maxWidth: .infinity, alignment: .leading)
+                            .font(Theme.Typography.body())
+                            .foregroundColor(searchText.isEmpty ? Theme.Colors.textSecondary : .primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if !searchText.isEmpty {
                         Button(action: {
@@ -122,33 +210,34 @@ struct GlassHeader: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16).padding(.vertical, 10)
-                .background(Color(.systemGray5).opacity(autoFocus ? 1.0 : 0.6))
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .padding(.horizontal, Theme.Spacing.medium)
+                .frame(minHeight: 56)
+                .background(Theme.Colors.inputBackground)
+                .cornerRadius(Theme.Radius.small)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.Radius.small)
+                        .stroke(isFocused ? Theme.Colors.actionPrimary : Color.clear, lineWidth: 2)
+                )
                 .onTapGesture { onTapped() }
                 
                 if let cancelAction = onCancel, autoFocus {
                     Button("Cancel", action: cancelAction)
-                        .font(.custom("Montserrat", size: 16).weight(.medium))
-                        .foregroundColor(Color.craigslistPurple).transition(.move(edge: .trailing).combined(with: .opacity))
+                        .font(Theme.Typography.body(weight: .bold))
+                        .foregroundColor(Theme.Colors.primary)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
-            .padding(.horizontal, 16).padding(.bottom, 12)
+            .padding(.horizontal, Theme.Spacing.screenMargin)
+            .padding(.bottom, Theme.Spacing.medium)
         }
         .background(
-            ZStack {
-                Color(.systemBackground).opacity(0.95)
-            }
-            .background(.ultraThinMaterial)
-            .ignoresSafeArea(.all, edges: .top)
+            Color(.systemBackground).opacity(0.95)
+                .background(.ultraThinMaterial)
+                .ignoresSafeArea(edges: .top)
         )
         .overlay(Divider().opacity(0.3), alignment: .bottom)
         .onAppear {
             if autoFocus { DispatchQueue.main.async { isFocused = true } }
-        }
-        .onChange(of: appState.selectedTab) { newTab in
-            if autoFocus && newTab == 1 { DispatchQueue.main.async { isFocused = true } }
-            else if autoFocus { isFocused = false }
         }
     }
 }
@@ -160,125 +249,77 @@ struct FilterAndViewBar: View {
     
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
-    @AppStorage("isAskAIEnabled") private var isAskAIEnabled = false
     
     @State private var showFilterSheet = false
     @State private var showViewSheet = false
     @State private var showLocationSheet = false
     @State private var showSortSheet = false
-    @State private var showAIChat = false
     
     var currentCategoryIcon: String {
-        if let cat = appState.selectedTopCategory,
-           let match = appState.topCategories.first(where: { $0.0 == cat }) {
-            return match.1
-        }
+        if let cat = appState.selectedTopCategory, let match = appState.topCategories.first(where: { $0.0 == cat }) { return match.1 }
         return "slider.horizontal.3"
-    }
-    
-    var mutedColor: Color {
-        guard let label = appState.selectedTopCategory else { return Color.primary }
-        switch label {
-        case "For Sale": return Color.craigslistPurple
-        case "Housing": return Color(red: 0.75, green: 0.45, blue: 0.35)
-        case "Jobs": return Color(red: 0.35, green: 0.60, blue: 0.45)
-        case "Community": return .blue
-        case "Services": return Color(red: 0.75, green: 0.40, blue: 0.50)
-        case "Gigs": return Color(red: 0.70, green: 0.55, blue: 0.30)
-        default: return Color.primary
-        }
     }
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                
-                // 1. "Ask Craig" AI Button (Weight fixed to .medium)
-                if isAskAIEnabled {
-                    Button(action: {
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
-                        showAIChat = true
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "sparkles")
-                            Text("Ask Craig").fixedSize(horizontal: true, vertical: false)
-                        }
-                        .font(.custom("Montserrat", size: 13).weight(.medium))
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(Color.craigslistPurple)
-                        .cornerRadius(16)
-                        .foregroundColor(.white)
-                    }
-                    .sheet(isPresented: $showAIChat) {
-                        AIChatView().presentationDetents([.fraction(0.9), .large])
-                    }
-                }
-                
-                // 2. Category Filter
+            HStack(spacing: Theme.Spacing.small) {
                 Button(action: { showFilterSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: currentCategoryIcon)
-                        Text(appState.selectedTopCategory ?? "All Categories").fixedSize(horizontal: true, vertical: false)
+                        Text(appState.selectedTopCategory ?? "All Categories").fixedSize()
                         Image(systemName: "chevron.down")
                     }
-                    .font(.custom("Montserrat", size: 13).weight(.medium))
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(appState.selectedTopCategory != nil ? mutedColor : Color.primary)
-                    .cornerRadius(16)
-                    .foregroundColor(appState.selectedTopCategory != nil ? Color.white : Color(.systemBackground))
+                    .font(Theme.Typography.caption(weight: .bold))
+                    .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
+                    .background(appState.selectedTopCategory != nil ? Theme.Colors.primary : Color.primary)
+                    .cornerRadius(Theme.Radius.small)
+                    .foregroundColor(Color(.systemBackground))
                 }
                 .sheet(isPresented: $showFilterSheet) { FilterSelectionSheet().presentationDetents([.medium, .large]) }
                 
-                // 3. Location Mode
-                Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                    showLocationSheet = true
-                }) {
+                Button(action: { showLocationSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: isNearbyMode ? "location.fill" : "location")
-                        Text(isNearbyMode ? "Nearby (\(Int(nearbyDistance)) mi)" : "Nearby").fixedSize(horizontal: true, vertical: false)
+                        Text(isNearbyMode ? "Nearby (\(Int(nearbyDistance))mi)" : "Nearby").fixedSize()
                         Image(systemName: "chevron.down")
                     }
-                    .font(.custom("Montserrat", size: 13).weight(.medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(isNearbyMode ? Color.primary : Color(.systemGray5).opacity(0.8))
-                    .cornerRadius(16)
+                    .font(Theme.Typography.caption(weight: .bold))
+                    .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
+                    .background(isNearbyMode ? Color.primary : Theme.Colors.surfaceCard)
+                    .cornerRadius(Theme.Radius.small)
                     .foregroundColor(isNearbyMode ? Color(.systemBackground) : .primary)
                 }
                 .sheet(isPresented: $showLocationSheet) { LocationSelectionSheet().presentationDetents([.medium, .large]) }
                 
-                // 4. Sort Button
                 Button(action: { showSortSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: sortOption.icon)
-                        Text(sortOption.rawValue).fixedSize(horizontal: true, vertical: false)
+                        Text(sortOption.rawValue).fixedSize()
                         Image(systemName: "chevron.down")
                     }
-                    .font(.custom("Montserrat", size: 13).weight(.medium))
-                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .font(Theme.Typography.caption(weight: .bold))
+                    .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
                     .background(Color.primary)
-                    .cornerRadius(16)
+                    .cornerRadius(Theme.Radius.small)
                     .foregroundColor(Color(.systemBackground))
                 }
                 .sheet(isPresented: $showSortSheet) { SortSelectionSheet(sortOption: $sortOption).presentationDetents([.height(350)]) }
                 
-                // 5. View Mode
                 Button(action: { showViewSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: viewMode.icon)
                         Text(viewMode.rawValue).fixedSize(horizontal: true, vertical: false)
                         Image(systemName: "chevron.down")
                     }
-                    .font(.custom("Montserrat", size: 13).weight(.medium))
-                    .padding(.horizontal, 12).padding(.vertical, 8).background(Color(.systemGray5).opacity(0.8)).cornerRadius(16).foregroundColor(.primary)
+                    .font(Theme.Typography.caption(weight: .bold))
+                    .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
+                    .background(Theme.Colors.surfaceCard)
+                    .cornerRadius(Theme.Radius.small)
+                    .foregroundColor(.primary)
                 }
                 .sheet(isPresented: $showViewSheet) { ViewSelectionSheet(viewMode: $viewMode).presentationDetents([.height(350)]) }
-                
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Theme.Spacing.screenMargin)
         }
     }
 }
@@ -293,21 +334,21 @@ struct SortSelectionSheet: View {
             VStack(spacing: 12) {
                 Capsule().fill(Color.gray.opacity(0.3)).frame(width: 40, height: 5).padding(.top, 12)
                 HStack {
-                    Text("Sort By").font(.custom("Montserrat", size: 17).weight(.bold))
+                    Text("Sort By").font(Theme.Typography.headingM())
                     Spacer()
-                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.primary)
-                }.padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 12)
+                    Button("Done") { dismiss() }.font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.primary)
+                }.padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, 12).padding(.bottom, 12)
             }
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(SortOption.allCases, id: \.self) { option in
                     Button(action: { sortOption = option; dismiss() }) {
                         HStack {
                             Image(systemName: option.icon).foregroundColor(.primary).frame(width: 24, alignment: .leading)
-                            Text(option.rawValue).font(.custom("NunitoSans", size: 16).weight(.semibold)).foregroundColor(.primary)
+                            Text(option.rawValue).font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary)
                             Spacer()
-                            if sortOption == option { Image(systemName: "checkmark").foregroundColor(.primary) }
+                            if sortOption == option { Image(systemName: "checkmark").foregroundColor(Theme.Colors.primary) }
                         }
-                        .padding(.vertical, 16).padding(.horizontal, 16)
+                        .padding(.vertical, Theme.Spacing.medium).padding(.horizontal, Theme.Spacing.screenMargin)
                     }
                     if option != SortOption.allCases.last { Divider().padding(.leading, 48) }
                 }
@@ -333,21 +374,21 @@ struct ViewSelectionSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 12) {
                 HStack {
-                    Text("View Mode").font(.custom("Montserrat", size: 17).weight(.bold))
+                    Text("View Mode").font(Theme.Typography.headingM())
                     Spacer()
-                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.primary)
-                }.padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 12)
+                    Button("Done") { dismiss() }.font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.primary)
+                }.padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, 24).padding(.bottom, 12)
             }
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(availableModes, id: \.self) { mode in
                     Button(action: { viewMode = mode; dismiss() }) {
                         HStack {
                             Image(systemName: mode.icon).foregroundColor(.primary).frame(width: 24, alignment: .leading)
-                            Text(mode.rawValue).font(.custom("NunitoSans", size: 16).weight(.semibold)).foregroundColor(.primary)
+                            Text(mode.rawValue).font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary)
                             Spacer()
-                            if viewMode == mode { Image(systemName: "checkmark").foregroundColor(.primary) }
+                            if viewMode == mode { Image(systemName: "checkmark").foregroundColor(Theme.Colors.primary) }
                         }
-                        .padding(.vertical, 16).padding(.horizontal, 16)
+                        .padding(.vertical, Theme.Spacing.medium).padding(.horizontal, Theme.Spacing.screenMargin)
                     }
                     if mode != availableModes.last { Divider().padding(.leading, 48) }
                 }
@@ -369,97 +410,82 @@ struct FilterSelectionSheet: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            headerView
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
-                    topCategoriesSection
-                    Divider().padding(.horizontal, 16)
-                    subCategoriesSection
+            VStack(spacing: Theme.Spacing.small) {
+                HStack {
+                    Text("Filters").font(Theme.Typography.headingL())
+                    Spacer()
+                    Button("Done") { dismiss() }.font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.primary)
                 }
-                .padding(.top, 8).padding(.bottom, 40)
+                .padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, Theme.Spacing.large).padding(.bottom, Theme.Spacing.small)
+            }
+            
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.section) {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                        Text("CATEGORY").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary).padding(.horizontal, Theme.Spacing.screenMargin)
+                        
+                        LazyVGrid(columns: columns, spacing: Theme.Spacing.large) {
+                            Button(action: {
+                                let generator = UIImpactFeedbackGenerator(style: .light)
+                                generator.impactOccurred()
+                                withAnimation { appState.selectedTopCategory = nil; appState.selectedSubCategory = nil }
+                            }) {
+                                VStack(spacing: Theme.Spacing.small) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(appState.selectedTopCategory == nil ? Theme.Colors.primary : Theme.Colors.surfaceCard)
+                                            .frame(width: appState.selectedTopCategory == nil ? 64 : 56, height: appState.selectedTopCategory == nil ? 64 : 56)
+                                        
+                                        Image(systemName: "square.grid.2x2.fill")
+                                            .font(.system(size: appState.selectedTopCategory == nil ? 24 : 20, weight: .bold))
+                                            .foregroundColor(appState.selectedTopCategory == nil ? Color(.systemBackground) : .primary)
+                                    }
+                                    Text("All")
+                                        .font(appState.selectedTopCategory == nil ? Theme.Typography.caption(weight: .bold) : Theme.Typography.helper(weight: .bold))
+                                        .foregroundColor(appState.selectedTopCategory == nil ? .primary : Theme.Colors.textSecondary)
+                                }
+                                .frame(width: 76)
+                            }.buttonStyle(.plain)
+                            
+                            ForEach(appState.topCategories, id: \.0) { cat in
+                                CategoryCircle(icon: cat.1, color: Theme.Colors.primary, label: cat.0)
+                            }
+                        }.padding(.horizontal, Theme.Spacing.screenMargin)
+                    }
+                    
+                    Divider().padding(.horizontal, Theme.Spacing.screenMargin)
+                    
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("SUBCATEGORIES").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary).padding(.horizontal, Theme.Spacing.screenMargin).padding(.bottom, Theme.Spacing.small)
+                        
+                        VStack(spacing: 0) {
+                            ForEach(activeSubs, id: \.self) { sub in
+                                Button(action: {
+                                    withAnimation(.spring()) {
+                                        appState.selectedSubCategory = (appState.selectedSubCategory == sub) ? nil : sub
+                                    }
+                                }) {
+                                    HStack {
+                                        Text(sub)
+                                            .font(Theme.Typography.body(weight: appState.selectedSubCategory == sub ? .bold : .regular))
+                                            .foregroundColor(.primary)
+                                        Spacer()
+                                        if appState.selectedSubCategory == sub {
+                                            Image(systemName: "checkmark").foregroundColor(Theme.Colors.primary)
+                                        }
+                                    }
+                                    .padding(.vertical, Theme.Spacing.medium)
+                                    .padding(.horizontal, Theme.Spacing.screenMargin)
+                                }
+                                Divider().padding(.leading, Theme.Spacing.screenMargin)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, Theme.Spacing.small).padding(.bottom, 40)
             }
         }
         .background(Color(.systemBackground))
-    }
-    
-    @ViewBuilder
-    private var headerView: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text("Filters").font(.custom("Montserrat", size: 17).weight(.bold))
-                Spacer()
-                Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.primary)
-            }
-            .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 12)
-        }
-    }
-    
-    @ViewBuilder
-    private var topCategoriesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("CATEGORY").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary).padding(.horizontal, 16)
-            
-            LazyVGrid(columns: columns, spacing: 24) {
-                Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { appState.selectedTopCategory = nil; appState.selectedSubCategory = nil }
-                }) {
-                    VStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(appState.selectedTopCategory == nil ? Color.primary : Color(.systemGray5))
-                                .frame(width: appState.selectedTopCategory == nil ? 64 : 56, height: appState.selectedTopCategory == nil ? 64 : 56)
-                                .shadow(color: appState.selectedTopCategory == nil ? Color.primary.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
-                            
-                            Image(systemName: "square.grid.2x2.fill")
-                                .font(.system(size: appState.selectedTopCategory == nil ? 24 : 20, weight: appState.selectedTopCategory == nil ? .bold : .medium))
-                                .foregroundColor(appState.selectedTopCategory == nil ? Color(.systemBackground) : .primary)
-                        }
-                        
-                        Text("All")
-                            .font(.custom(appState.selectedTopCategory == nil ? "Montserrat" : "NunitoSans", size: 12).weight(appState.selectedTopCategory == nil ? .bold : .medium))
-                            .foregroundColor(appState.selectedTopCategory == nil ? .primary : .secondary)
-                    }
-                    .frame(width: 76)
-                }.buttonStyle(.plain)
-                
-                ForEach(appState.topCategories, id: \.0) { cat in
-                    CategoryCircle(icon: cat.1, color: Color.craigslistPurple, label: cat.0)
-                }
-            }.padding(.horizontal, 16).padding(.top, 16)
-        }
-    }
-    
-    @ViewBuilder
-    private var subCategoriesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("SUBCATEGORIES").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary).padding(.horizontal, 16).padding(.bottom, 8)
-            
-            VStack(spacing: 0) {
-                ForEach(activeSubs, id: \.self) { sub in
-                    Button(action: {
-                        withAnimation(.spring()) {
-                            if appState.selectedSubCategory == sub { appState.selectedSubCategory = nil }
-                            else { appState.selectedSubCategory = sub }
-                        }
-                    }) {
-                        HStack {
-                            Text(sub)
-                                .font(.custom("NunitoSans", size: 16).weight(appState.selectedSubCategory == sub ? .bold : .medium))
-                                .foregroundColor(appState.selectedSubCategory == sub ? .primary : .primary)
-                            Spacer()
-                            if appState.selectedSubCategory == sub {
-                                Image(systemName: "checkmark").foregroundColor(.primary)
-                            }
-                        }
-                        .padding(.vertical, 14)
-                        .padding(.horizontal, 16)
-                    }
-                    Divider().padding(.leading, 16)
-                }
-            }
-        }
     }
 }
 
@@ -475,104 +501,67 @@ struct LocationSelectionSheet: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            headerView
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Location").font(Theme.Typography.headingM())
+                    Spacer()
+                    Button("Done") { dismiss() }.font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.primary)
+                }
+                .padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, 24).padding(.bottom, 12)
+            }
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 32) {
-                    currentLocationButton
-                    nearbyModeSection
-                    searchRadiusSection
-                    neighborhoodsSection
-                    citiesSection
+                    Button(action: {}) {
+                        HStack { Image(systemName: "location.fill"); Text("Use Current Location") }
+                        .font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
+                        .padding().background(Theme.Colors.surfaceCard).cornerRadius(Theme.Radius.small)
+                    }.padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, 16)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("NEARBY MODE").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                        Toggle(isOn: $isNearbyMode) { Text("Prioritize nearby items & deals").font(Theme.Typography.body()) }
+                            .tint(Theme.Colors.primary)
+                        
+                        if isNearbyMode {
+                            Divider().padding(.vertical, 4)
+                            Stepper(value: $nearbyDistance, in: 1...50, step: 1) {
+                                Text("Distance: \(Int(nearbyDistance)) miles")
+                                    .font(Theme.Typography.body(weight: .semibold))
+                            }
+                        }
+                    }.padding(.horizontal, Theme.Spacing.screenMargin)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("SEARCH RADIUS").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                        HStack(spacing: 8) {
+                            ForEach(radii, id: \.self) { radius in
+                                Button(action: { nearbyDistance = Double(radius) }) {
+                                    Text("\(radius) miles")
+                                        .font(Theme.Typography.caption(weight: .semibold))
+                                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                        .background(Int(nearbyDistance) == radius ? Theme.Colors.primary : Theme.Colors.surfaceCard)
+                                        .foregroundColor(Int(nearbyDistance) == radius ? Color(.systemBackground) : .primary)
+                                        .cornerRadius(20)
+                                }
+                            }
+                        }
+                    }.padding(.horizontal, Theme.Spacing.screenMargin)
+                    
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("CITIES").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary).padding(.horizontal, Theme.Spacing.screenMargin).padding(.bottom, 8)
+                        ForEach(cities, id: \.self) { loc in
+                            Button(action: { appState.selectedLocation = loc; dismiss() }) {
+                                HStack { Image(systemName: "building.2.fill").foregroundColor(Theme.Colors.textSecondary); Text(loc).font(Theme.Typography.body()).foregroundColor(.primary); Spacer(); if appState.selectedLocation == loc { Image(systemName: "checkmark").foregroundColor(Theme.Colors.primary) } }
+                                .padding(.vertical, 14).padding(.horizontal, Theme.Spacing.screenMargin)
+                            }
+                            if loc != cities.last { Divider().padding(.leading, 48) }
+                        }
+                    }
                 }
                 .padding(.bottom, 40)
             }
         }
         .background(Color(.systemBackground))
-    }
-    
-    @ViewBuilder
-    private var headerView: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text("Location").font(.custom("Montserrat", size: 17).weight(.bold))
-                Spacer()
-                Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.primary)
-            }
-            .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 12)
-        }
-    }
-    
-    @ViewBuilder
-    private var currentLocationButton: some View {
-        Button(action: {}) {
-            HStack { Image(systemName: "location.fill"); Text("Use Current Location") }
-            .font(.custom("Montserrat", size: 16).weight(.semibold)).foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
-            .padding().background(Color(.systemGray5)).cornerRadius(12)
-        }.padding(.horizontal, 16).padding(.top, 16)
-    }
-    
-    @ViewBuilder
-    private var nearbyModeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("NEARBY MODE").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary)
-            Toggle(isOn: $isNearbyMode) { Text("Prioritize nearby items & deals").font(.custom("NunitoSans", size: 16).weight(.regular)) }
-                .tint(Color.craigslistPurple)
-            
-            if isNearbyMode {
-                Divider().padding(.vertical, 4)
-                Stepper(value: $nearbyDistance, in: 1...50, step: 1) {
-                    Text("Distance: \(Int(nearbyDistance)) miles")
-                        .font(.custom("NunitoSans", size: 16).weight(.semibold))
-                }
-            }
-        }.padding(.horizontal, 16)
-    }
-    
-    @ViewBuilder
-    private var searchRadiusSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("SEARCH RADIUS").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary)
-            HStack(spacing: 8) {
-                ForEach(radii, id: \.self) { radius in
-                    Button(action: { nearbyDistance = Double(radius) }) {
-                        Text("\(radius) miles")
-                            .font(.custom("NunitoSans", size: 14).weight(.semibold))
-                            .frame(maxWidth: .infinity).padding(.vertical, 10)
-                            .background(Int(nearbyDistance) == radius ? Color.primary : Color(.systemGray5))
-                            .foregroundColor(Int(nearbyDistance) == radius ? Color(.systemBackground) : .primary)
-                            .cornerRadius(20)
-                    }
-                }
-            }
-        }.padding(.horizontal, 16)
-    }
-    
-    @ViewBuilder
-    private var neighborhoodsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("NEIGHBORHOODS").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary).padding(.horizontal, 16).padding(.bottom, 8)
-            ForEach(neighborhoods, id: \.self) { loc in
-                Button(action: { appState.selectedLocation = loc; dismiss() }) {
-                    HStack { Image(systemName: "mappin.and.ellipse").foregroundColor(.secondary); Text(loc).font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.primary); Spacer(); if appState.selectedLocation == loc { Image(systemName: "checkmark").foregroundColor(.primary) } }
-                    .padding(.vertical, 14).padding(.horizontal, 16)
-                }
-                Divider().padding(.leading, 48)
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var citiesSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("CITIES").font(.custom("Montserrat", size: 12).weight(.bold)).foregroundColor(.secondary).padding(.horizontal, 16).padding(.bottom, 8)
-            ForEach(cities, id: \.self) { loc in
-                Button(action: { appState.selectedLocation = loc; dismiss() }) {
-                    HStack { Image(systemName: "building.2.fill").foregroundColor(.secondary); Text(loc).font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.primary); Spacer(); if appState.selectedLocation == loc { Image(systemName: "checkmark").foregroundColor(.primary) } }
-                    .padding(.vertical, 14).padding(.horizontal, 16)
-                }
-                if loc != cities.last { Divider().padding(.leading, 48) }
-            }
-        }
     }
 }
 
@@ -582,18 +571,6 @@ struct CategoryCircle: View {
     var icon: String; var color: Color; var label: String
     var onTap: (() -> Void)? = nil
     var isSelected: Bool { appState.selectedTopCategory == label }
-    
-    var mutedColor: Color {
-        switch label {
-        case "For Sale": return Color.craigslistPurple
-        case "Housing": return Color(red: 0.75, green: 0.45, blue: 0.35)
-        case "Jobs": return Color(red: 0.35, green: 0.60, blue: 0.45)
-        case "Community": return .blue
-        case "Services": return Color(red: 0.75, green: 0.40, blue: 0.50)
-        case "Gigs": return Color(red: 0.70, green: 0.55, blue: 0.30)
-        default: return color
-        }
-    }
     
     var body: some View {
         Button(action: {
@@ -608,12 +585,12 @@ struct CategoryCircle: View {
             }
             onTap?()
         }) {
-            VStack(spacing: 12) {
+            VStack(spacing: Theme.Spacing.small) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? mutedColor : Color(.systemGray5))
+                        .fill(isSelected ? Theme.Colors.primary : Theme.Colors.surfaceCard)
                         .frame(width: isSelected ? 64 : 56, height: isSelected ? 64 : 56)
-                        .shadow(color: isSelected ? mutedColor.opacity(0.4) : Color.clear, radius: 8, x: 0, y: 4)
+                        .shadow(color: isSelected ? Theme.Colors.primary.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
                     
                     Image(systemName: icon)
                         .font(.system(size: isSelected ? 24 : 20, weight: isSelected ? .bold : .medium))
@@ -621,8 +598,8 @@ struct CategoryCircle: View {
                 }
                 
                 Text(label)
-                    .font(.custom(isSelected ? "Montserrat" : "NunitoSans", size: 12).weight(isSelected ? .bold : .semibold))
-                    .foregroundColor(isSelected ? .primary : .secondary)
+                    .font(isSelected ? Theme.Typography.caption(weight: .bold) : Theme.Typography.helper(weight: .bold))
+                    .foregroundColor(isSelected ? .primary : Theme.Colors.textSecondary)
             }
             .frame(width: 76)
         }.buttonStyle(.plain)
@@ -638,43 +615,34 @@ struct CraigslistCategoryBrowser: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            topCategoriesScroll
-            subCategoriesScroll
-        }
-    }
-    
-    @ViewBuilder
-    private var topCategoriesScroll: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 20) {
-                ForEach(appState.topCategories, id: \.0) { cat in
-                    CategoryCircle(icon: cat.1, color: Color.craigslistPurple, label: cat.0)
-                }
-            }.padding(.horizontal, 20).padding(.vertical, 8)
-        }
-    }
-    
-    @ViewBuilder
-    private var subCategoriesScroll: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(activeSubs, id: \.self) { sub in
-                    Button(action: {
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
-                        withAnimation(.spring()) {
-                            if appState.selectedSubCategory == sub { appState.selectedSubCategory = nil }
-                            else { appState.selectedSubCategory = sub }
-                        }
-                    }) {
-                        Text(sub).font(.custom("NunitoSans", size: 14).weight(appState.selectedSubCategory == sub ? .bold : .semibold)).padding(.horizontal, 16).padding(.vertical, 8)
-                            .background(appState.selectedSubCategory == sub ? Color.primary : Color(.systemGray5))
-                            .foregroundColor(appState.selectedSubCategory == sub ? Color(.systemBackground) : .primary)
-                            .clipShape(Capsule())
+        VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 20) {
+                    ForEach(appState.topCategories, id: \.0) { cat in
+                        CategoryCircle(icon: cat.1, color: Theme.Colors.primary, label: cat.0)
                     }
-                }
-            }.padding(.horizontal, 16)
+                }.padding(.horizontal, 20).padding(.vertical, 8)
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(activeSubs, id: \.self) { sub in
+                        Button(action: {
+                            let generator = UIImpactFeedbackGenerator(style: .light)
+                            generator.impactOccurred()
+                            withAnimation(.spring()) {
+                                if appState.selectedSubCategory == sub { appState.selectedSubCategory = nil }
+                                else { appState.selectedSubCategory = sub }
+                            }
+                        }) {
+                            Text(sub).font(Theme.Typography.caption(weight: appState.selectedSubCategory == sub ? .bold : .semibold)).padding(.horizontal, 16).padding(.vertical, 8)
+                                .background(appState.selectedSubCategory == sub ? Theme.Colors.primary : Theme.Colors.surfaceCard)
+                                .foregroundColor(appState.selectedSubCategory == sub ? Color(.systemBackground) : .primary)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }.padding(.horizontal, Theme.Spacing.screenMargin)
+            }
         }
     }
 }
@@ -684,14 +652,14 @@ struct RecentSearchRow: View {
     var body: some View {
         HStack(spacing: 16) {
             ZStack {
-                Circle().fill(Color(.systemGray5).opacity(0.6)).frame(width: 40, height: 40)
-                Image(systemName: icon).font(.system(size: 16, weight: .semibold)).foregroundColor(isItem ? Color.craigslistPurple : .secondary)
+                Circle().fill(Theme.Colors.surfaceCard).frame(width: 40, height: 40)
+                Image(systemName: icon).font(.system(size: 16, weight: .semibold)).foregroundColor(isItem ? Theme.Colors.primary : Theme.Colors.textSecondary)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.custom("Montserrat", size: 16).weight(.bold)).foregroundColor(.primary)
-                Text(subtitle).font(.custom("NunitoSans", size: 14).weight(.regular)).foregroundColor(.secondary)
+                Text(title).font(Theme.Typography.body(weight: .bold)).foregroundColor(.primary)
+                Text(subtitle).font(Theme.Typography.caption()).foregroundColor(Theme.Colors.textSecondary)
             }
             Spacer()
-        }.padding(.horizontal, 16)
+        }.padding(.horizontal, Theme.Spacing.screenMargin)
     }
 }
