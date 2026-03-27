@@ -73,6 +73,7 @@ struct ListingDetailView: View {
     
     @State private var showShareSheet = false
     @State private var showAllActions = false // Controls the Show More / Show Less state
+    @State private var showChatRoom = false
     
     private var currentIndex: Int? { allIDs.firstIndex(of: listing.id) }
     private var displayIndex: Int { (currentIndex ?? 0) + 1 }
@@ -164,13 +165,11 @@ struct ListingDetailView: View {
                             CircularActionButton(icon: "xmark", action: onDismiss)
                             Spacer()
                             HStack(spacing: 12) {
-                                // Forces iconColor to ALWAYS be blue to retain the stroke
                                 CircularActionButton(
                                     icon: appState.votedIDs.contains(listing.id) ? "hand.thumbsup.fill" : "hand.thumbsup",
                                     iconColor: .blue,
                                     action: { handleAction { appState.toggleVoted(listing.id) } }
                                 )
-                                // Forces iconColor to ALWAYS be orange to retain the stroke
                                 CircularActionButton(
                                     icon: appState.isFavorited(listing.id) ? "heart.fill" : "heart",
                                     iconColor: .orange,
@@ -339,9 +338,16 @@ struct ListingDetailView: View {
             .ignoresSafeArea(edges: .top)
             .background(Color(.systemBackground))
             
+            // Bottom Sticky Navigation Row
             VStack(spacing: 12) {
-                Button(action: {}) {
-                    Text("Message Seller").font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(Color(.systemBackground)).frame(maxWidth: .infinity).frame(height: 56).background(Color.primary).cornerRadius(16)
+                Button(action: { showChatRoom = true }) {
+                    Text("Message Seller")
+                        .font(.custom("Montserrat", size: 17).weight(.bold))
+                        .foregroundColor(Color(.systemBackground))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Theme.Colors.primary)
+                        .cornerRadius(16)
                 }
                 
                 HStack(spacing: 6) {
@@ -368,6 +374,17 @@ struct ListingDetailView: View {
         .background(Color(.systemBackground))
         .sheet(isPresented: $showShareSheet) {
             ListingShareSheet().presentationDetents([.height(340)])
+        }
+        // FIX: Passes the exact initialListingId instead of a plain string
+        .fullScreenCover(isPresented: $showChatRoom) {
+            NavigationStack {
+                ChatRoom(
+                    contactName: listing.sellerName,
+                    contactAvatar: listing.sellerAvatar,
+                    initialListingId: listing.id,
+                    autoFocus: true
+                )
+            }
         }
     }
     
