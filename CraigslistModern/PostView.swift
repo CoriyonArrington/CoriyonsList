@@ -82,7 +82,7 @@ struct PostView: View {
                             .foregroundColor(Theme.Colors.primary)
                     } else {
                         Button(action: { goBackStep() }) {
-                            HStack(spacing: 8) { // FIX: Increased spacing for native feel
+                            HStack(spacing: 8) {
                                 Image(systemName: "chevron.left")
                                 Text("Back")
                             }
@@ -513,12 +513,11 @@ struct PostView: View {
                 self.selectedImages = newImages
                 if !self.selectedImages.isEmpty && !self.showAIInsights {
                     withAnimation { self.isScanningImage = true }
-                    
-                    // FIX: Zero-click AI Auto-fill populates the fields automatically
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                         withAnimation {
                             self.isScanningImage = false
                             self.showAIInsights = true
+                            // FIX: Automatically pre-fill the form upon successful AI scan
                             if self.title.isEmpty { self.title = "Standing Desk" }
                             if self.price.isEmpty { self.price = "150" }
                         }
@@ -543,15 +542,51 @@ struct PostView: View {
     private func publishListing() {
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
-        let newListing = Listing(id: UUID(), title: title.isEmpty ? "Untitled Listing" : title, price: Int(price) ?? 0, coordinate: CLLocationCoordinate2D(latitude: 44.9778 + Double.random(in: -0.02...0.02), longitude: -93.2650 + Double.random(in: -0.02...0.02)), neighborhood: appState.selectedLocation, distance: 0.1, description: itemDescription.isEmpty ? "No description provided." : itemDescription, category: selectedSubCategory ?? selectedTopCategory ?? "For Sale", datePosted: Date(), condition: condition, images: saveImagesLocally(), sellerName: "Coriyon Arrington", sellerType: "Private Owner", sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200", sellerRating: 5.0, reviewCount: 0, tags: ["home", "search"])
+        
+        let newListing = Listing(
+            id: UUID(),
+            title: title.isEmpty ? "Untitled Listing" : title,
+            price: Int(price) ?? 0,
+            coordinate: CLLocationCoordinate2D(latitude: 44.9778 + Double.random(in: -0.02...0.02), longitude: -93.2650 + Double.random(in: -0.02...0.02)),
+            neighborhood: appState.selectedLocation,
+            distance: 0.1,
+            description: itemDescription.isEmpty ? "No description provided." : itemDescription,
+            category: selectedSubCategory ?? selectedTopCategory ?? "For Sale",
+            datePosted: Date(),
+            condition: condition,
+            images: saveImagesLocally(),
+            sellerName: "Coriyon Arrington",
+            sellerType: "Private Owner",
+            sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200",
+            sellerRating: 5.0,
+            reviewCount: 0,
+            tags: ["home", "search"]
+        )
+        
         withAnimation { appState.listings.insert(newListing, at: 0) }
-        appState.triggerToast(message: "Listing Published Successfully")
+        
+        // FIX: Directly route the user to My Listings and show the toast
         resetForm()
+        UserDefaults.standard.set("My Listings", forKey: "favoritesTabSelection")
+        appState.selectedTab = 3
+        appState.triggerToast(message: "Listing Published Successfully")
     }
     
     private func resetForm() {
-        currentStep = 1; title = ""; price = ""; itemDescription = ""; condition = "Like New"; selectedTopCategory = nil; selectedSubCategory = nil; selectedPhotoItems.removeAll(); selectedImages.removeAll(); isScanningImage = false; showAIInsights = false; isGeneratingDetails = false; hasGeneratedDetails = false; isInputFocused = false
-        if appState.selectedTab == 2 { appState.selectedTab = appState.previousTab }
+        currentStep = 1
+        title = ""
+        price = ""
+        itemDescription = ""
+        condition = "Like New"
+        selectedTopCategory = nil
+        selectedSubCategory = nil
+        selectedPhotoItems.removeAll()
+        selectedImages.removeAll()
+        isScanningImage = false
+        showAIInsights = false
+        isGeneratingDetails = false
+        hasGeneratedDetails = false
+        isInputFocused = false
     }
 }
 
