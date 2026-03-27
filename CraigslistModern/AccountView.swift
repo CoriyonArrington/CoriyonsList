@@ -7,7 +7,7 @@ struct AccountView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
-                // Header (Adjusted Padding)
+                // Header
                 VStack(spacing: Theme.Spacing.small) {
                     HStack {
                         Text("Account").font(Theme.Typography.headingM())
@@ -22,33 +22,7 @@ struct AccountView: View {
                 }
                 
                 ScrollView(showsIndicators: false) {
-                    // Main Scroll Content (Reduced spacing to medium for tighter layout)
-                    VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-                        
-                        // User Content Link
-                        VStack(alignment: .leading, spacing: 0) {
-                            NavigationLink(destination: MyListingsView()) {
-                                HStack {
-                                    Image(systemName: "list.bullet.rectangle.portrait")
-                                        .foregroundColor(Theme.Colors.primary)
-                                        .frame(width: 24, alignment: .leading)
-                                    Text("My Listings")
-                                        .font(Theme.Typography.body(weight: .bold))
-                                        .foregroundColor(.primary)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(Theme.Colors.textSecondary)
-                                }
-                                .padding(.vertical, 16)
-                                .padding(.horizontal, Theme.Spacing.screenMargin)
-                            }
-                        }
-                        .background(Theme.Colors.surfaceCard)
-                        .cornerRadius(Theme.Radius.medium)
-                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                        .padding(.horizontal, Theme.Spacing.screenMargin)
-                        // Removed extra top padding here to fix the gap issue
+                    VStack(alignment: .leading, spacing: Theme.Spacing.section) {
                         
                         // Standard Options
                         VStack(alignment: .leading, spacing: 0) {
