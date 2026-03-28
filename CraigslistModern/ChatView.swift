@@ -127,59 +127,88 @@ struct ChatView: View {
         NavigationStack {
             ZStack(alignment: .top) {
                 Color(.systemGroupedBackground).ignoresSafeArea()
-                CraigslistPattern() // Pattern applied to inbox
+                CraigslistPattern()
                 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        // Segmented Control
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: Theme.Spacing.small) {
-                                ForEach(options, id: \.self) { option in
-                                    Button(action: {
-                                        let generator = UIImpactFeedbackGenerator(style: .light)
-                                        generator.impactOccurred()
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            chatStatus = option
-                                        }
-                                    }) {
-                                        Text(option)
-                                            .font(Theme.Typography.caption(weight: chatStatus == option ? .bold : .semibold))
-                                            .padding(.horizontal, Theme.Spacing.medium)
-                                            .frame(minHeight: 38)
-                                            .background(chatStatus == option ? Theme.Colors.primary : Theme.Colors.surfaceCard)
-                                            .foregroundColor(chatStatus == option ? Color(.systemBackground) : .primary)
-                                            .cornerRadius(Theme.Radius.small)
+                VStack(spacing: 0) {
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Theme.Spacing.small) {
+                            ForEach(options, id: \.self) { option in
+                                Button(action: {
+                                    let generator = UIImpactFeedbackGenerator(style: .light)
+                                    generator.impactOccurred()
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        chatStatus = option
                                     }
+                                }) {
+                                    Text(option)
+                                        .font(Theme.Typography.caption(weight: chatStatus == option ? .bold : .semibold))
+                                        .padding(.horizontal, Theme.Spacing.medium)
+                                        .frame(minHeight: 38)
+                                        .background(chatStatus == option ? Theme.Colors.primary : Theme.Colors.surfaceCard)
+                                        .foregroundColor(chatStatus == option ? Color(.systemBackground) : .primary)
+                                        .cornerRadius(Theme.Radius.small)
                                 }
                             }
-                            .padding(.horizontal, Theme.Spacing.screenMargin)
                         }
-                        .padding(.top, Theme.Spacing.medium)
-                        .padding(.bottom, Theme.Spacing.large)
-                        
-                        // Threads List
-                        if filteredThreads.isEmpty {
-                            VStack(spacing: Theme.Spacing.medium) {
-                                Image(systemName: chatStatus == "Hidden" ? "eye.slash.fill" : "message.fill")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(.gray)
-                                Text("No \(chatStatus.lowercased()) messages.")
-                                    .font(Theme.Typography.body())
-                                    .foregroundColor(Theme.Colors.textSecondary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 100)
-                        } else {
-                            LazyVStack(spacing: 0) {
-                                ForEach(filteredThreads) { thread in
+                        .padding(.horizontal, Theme.Spacing.screenMargin)
+                    }
+                    .padding(.top, Theme.Spacing.medium)
+                    .padding(.bottom, Theme.Spacing.large)
+                    
+                    if filteredThreads.isEmpty {
+                        VStack(spacing: Theme.Spacing.medium) {
+                            Image(systemName: chatStatus == "Hidden" ? "eye.slash.fill" : "message.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(.gray)
+                            Text("No \(chatStatus.lowercased()) messages.")
+                                .font(Theme.Typography.body())
+                                .foregroundColor(Theme.Colors.textSecondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 100)
+                    } else {
+                        // Native List ensures swipe-to-delete works perfectly
+                        List {
+                            ForEach(filteredThreads) { thread in
+                                ZStack {
+                                    ChatRow(thread: thread, chatStore: chatStore)
+                                    
                                     NavigationLink(destination: ChatRoom(contactName: thread.contactName, contactAvatar: thread.contactAvatar)) {
-                                        ChatRow(thread: thread, chatStore: chatStore)
+                                        EmptyView()
                                     }
-                                    .buttonStyle(.plain)
+                                    .opacity(0) // Hide the default chevron
+                                }
+                                .listRowInsets(EdgeInsets())
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        withAnimation { chatStore.deleteThread(for: thread.contactName) }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                    
+                                    Button {
+                                        withAnimation { chatStore.toggleHidden(for: thread.contactName) }
+                                    } label: {
+                                        Label(thread.isHidden ? "Unhide" : "Hide", systemImage: thread.isHidden ? "eye" : "eye.slash")
+                                    }
+                                    .tint(Theme.Colors.surfaceGray)
+                                }
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        withAnimation { chatStore.deleteThread(for: thread.contactName) }
+                                    } label: { Label("Delete Chat", systemImage: "trash") }
+                                    
+                                    Button {
+                                        withAnimation { chatStore.toggleHidden(for: thread.contactName) }
+                                    } label: { Label(thread.isHidden ? "Unhide Chat" : "Hide Chat", systemImage: thread.isHidden ? "eye" : "eye.slash") }
                                 }
                             }
                         }
-                        Spacer(minLength: 80)
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                     }
                 }
                 .safeAreaInset(edge: .top) {
@@ -219,7 +248,6 @@ struct ChatRow: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: Theme.Spacing.medium) {
-                
                 ChatAvatarView(avatarUrl: thread.contactAvatar, name: thread.contactName, size: 48)
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -240,23 +268,8 @@ struct ChatRow: View {
             Divider().opacity(0.3).padding(.leading, 88)
         }
         .background(Color(.systemGroupedBackground).opacity(0.95))
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive) {
-                withAnimation { chatStore.deleteThread(for: thread.contactName) }
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            
-            Button {
-                withAnimation { chatStore.toggleHidden(for: thread.contactName) }
-            } label: {
-                Label(thread.isHidden ? "Unhide" : "Hide", systemImage: thread.isHidden ? "eye" : "eye.slash")
-            }
-            .tint(Theme.Colors.surfaceGray)
-        }
     }
     
-    // Formats timestamps like the native iOS Messages inbox
     private func formatInboxDate(_ date: Date) -> String {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) {

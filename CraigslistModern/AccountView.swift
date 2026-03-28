@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AccountView: View {
+    @EnvironmentObject var appState: AppState
     @AppStorage("isSwipeViewEnabled") private var isSwipeViewEnabled = true
     @Environment(\.dismiss) var dismiss
     
@@ -24,18 +25,31 @@ struct AccountView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: Theme.Spacing.section) {
                         
-                        // Standard Options
-                        VStack(alignment: .leading, spacing: 0) {
-                            AccountActionRow(icon: "gearshape", title: "Settings")
-                            Divider().padding(.leading, 48)
-                            AccountActionRow(icon: "envelope", title: "Feedback")
-                            Divider().padding(.leading, 48)
-                            AccountActionRow(icon: "hand.raised", title: "Privacy")
-                            Divider().padding(.leading, 48)
-                            AccountActionRow(icon: "info.circle", title: "About")
-                            Divider().padding(.leading, 48)
-                            AccountActionRow(icon: "questionmark.circle", title: "Help")
+                        // My Listings Direct Route
+                        Button(action: {
+                            UserDefaults.standard.set("My Listings", forKey: "favoritesTabSelection")
+                            appState.selectedTab = 3
+                            dismiss()
+                        }) {
+                            HStack {
+                                Image(systemName: "list.bullet.rectangle.portrait")
+                                    .foregroundColor(Theme.Colors.primary)
+                                    .frame(width: 24, alignment: .leading)
+                                Text("My Listings")
+                                    .font(Theme.Typography.body(weight: .bold))
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Theme.Colors.textSecondary)
+                            }
+                            .padding(.vertical, 16)
+                            .padding(.horizontal, Theme.Spacing.screenMargin)
                         }
+                        .background(Theme.Colors.surfaceCard)
+                        .cornerRadius(Theme.Radius.medium)
+                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                        .padding(.horizontal, Theme.Spacing.screenMargin)
                         
                         // Experimental Features
                         VStack(alignment: .leading, spacing: 0) {
@@ -46,20 +60,6 @@ struct AccountView: View {
                                 .padding(.bottom, Theme.Spacing.small)
                             
                             ToggleRow(title: "Enable Swipe View", icon: "rectangle.stack.fill", isOn: $isSwipeViewEnabled)
-                        }
-                        
-                        // Log Out
-                        VStack {
-                            Button(action: {}) {
-                                Text("Log Out")
-                                    .font(Theme.Typography.body(weight: .bold))
-                                    .foregroundColor(.red)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, Theme.Spacing.medium)
-                                    .background(Color.red.opacity(0.1))
-                                    .cornerRadius(Theme.Radius.small)
-                            }
-                            .padding(.horizontal, Theme.Spacing.screenMargin)
                         }
                     }
                     .padding(.bottom, 40)
@@ -73,23 +73,6 @@ struct AccountView: View {
 }
 
 // MARK: - Subcomponents
-struct AccountActionRow: View {
-    let icon: String
-    let title: String
-    
-    var body: some View {
-        Button(action: {}) {
-            HStack {
-                Image(systemName: icon).foregroundColor(.primary).frame(width: 24, alignment: .leading)
-                Text(title).font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary)
-                Spacer()
-            }
-            .padding(.vertical, 12)
-            .padding(.horizontal, Theme.Spacing.screenMargin)
-        }
-    }
-}
-
 struct ToggleRow: View {
     let title: String
     let icon: String
