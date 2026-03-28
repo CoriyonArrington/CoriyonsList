@@ -24,7 +24,7 @@ struct ChatRoom: View {
         thread?.messages ?? []
     }
     
-    var targetListing: Listing? {
+    var targetListing: LiveListing? {
         let idToFind = thread?.listingId ?? initialListingId
         return appState.listings.first(where: { $0.id == idToFind })
     }
@@ -47,7 +47,7 @@ struct ChatRoom: View {
                     // Contextual Listing Header
                     if let listing = targetListing {
                         HStack(spacing: Theme.Spacing.medium) {
-                            if let firstImg = listing.images.first, let url = URL(string: firstImg) {
+                            if let firstImg = listing.images?.first, let url = URL(string: firstImg) {
                                 AsyncImage(url: url) { phase in
                                     if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
                                     else { Color(.systemGray5) }

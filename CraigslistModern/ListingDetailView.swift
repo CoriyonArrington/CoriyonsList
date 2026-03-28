@@ -1,15 +1,16 @@
 import SwiftUI
+import Supabase
 
 // MARK: - Pager Wrapper
 struct ListingPagerView: View {
     @EnvironmentObject var appState: AppState
-    @Binding var listings: [Listing]
+    @Binding var listings: [LiveListing]
     
     @State private var localIDs: [UUID]
     @Binding var selectedListingID: UUID?
     @Environment(\.dismiss) var dismiss
     
-    init(listings: Binding<[Listing]>, filteredIDs: [UUID], selectedListingID: Binding<UUID?>) {
+    init(listings: Binding<[LiveListing]>, filteredIDs: [UUID], selectedListingID: Binding<UUID?>) {
         self._listings = listings
         self._localIDs = State(initialValue: filteredIDs)
         self._selectedListingID = selectedListingID
@@ -60,7 +61,7 @@ struct ListingPagerView: View {
 struct ListingDetailView: View {
     @EnvironmentObject var appState: AppState
     
-    let listing: Listing
+    let listing: LiveListing
     let allIDs: [UUID]
     @Binding var selectedListingID: UUID?
     
@@ -135,18 +136,22 @@ struct ListingDetailView: View {
                     
                     ZStack(alignment: .top) {
                         TabView {
-                            ForEach(listing.images, id: \.self) { imageUrlStr in
-                                if let url = URL(string: imageUrlStr) {
-                                    AsyncImage(url: url) { phase in
-                                        if let image = phase.image {
-                                            image.resizable().aspectRatio(contentMode: .fill)
-                                        } else {
-                                            Color(.systemGray5)
+                            if let images = listing.images, !images.isEmpty {
+                                ForEach(images, id: \.self) { imageUrlStr in
+                                    if let url = URL(string: imageUrlStr) {
+                                        AsyncImage(url: url) { phase in
+                                            if let image = phase.image {
+                                                image.resizable().aspectRatio(contentMode: .fill)
+                                            } else {
+                                                Color(.systemGray5)
+                                            }
                                         }
+                                        .frame(width: UIScreen.main.bounds.width, height: 400)
+                                        .clipped()
                                     }
-                                    .frame(width: UIScreen.main.bounds.width, height: 400)
-                                    .clipped()
                                 }
+                            } else {
+                                Color(.systemGray5).frame(width: UIScreen.main.bounds.width, height: 400)
                             }
                         }
                         .frame(height: 400)
@@ -167,7 +172,6 @@ struct ListingDetailView: View {
                                     action: { handleAction { appState.toggleFavorite(listing.id) } }
                                 )
                                 
-                                // FIX: Adding the SharePreview tells iOS exactly what title to display in the share sheet header.
                                 ShareLink(
                                     item: URL(string: "https://coriyonslist.app/listing/\(listing.id)")!,
                                     preview: SharePreview(listing.title)
@@ -204,7 +208,7 @@ struct ListingDetailView: View {
                     HStack(alignment: .top) {
                         VStack(spacing: 10) {
                             Image(systemName: "tag").font(.system(size: 24, weight: .light)).foregroundColor(getCategoryColor())
-                            Text(listing.category)
+                            Text(listing.category ?? "For Sale")
                                 .font(.custom("NunitoSans", size: 12).weight(.bold))
                                 .foregroundColor(getCategoryColor())
                                 .multilineTextAlignment(.center)
@@ -217,57 +221,25 @@ struct ListingDetailView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .top)
                         
-                        AttributeIconView(icon: "location", title: "\(listing.neighborhood)\n\(String(format: "%.1f", listing.distance)) mi")
+                        AttributeIconView(icon: "location", title: listing.neighborhood ?? "Local Area")
                         
-                        AttributeIconView(icon: "sparkles", title: listing.condition)
+                        AttributeIconView(icon: "sparkles", title: listing.condition ?? "Good")
                         
-                        AttributeIconView(icon: "clock", title: timeAgo(from: listing.datePosted))
+                        AttributeIconView(icon: "clock", title: timeAgo(from: listing.createdAt ?? Date()))
                     }
                     .padding(.horizontal, 10).padding(.vertical, 24)
                     
                     Divider().padding(.horizontal, 20)
                     
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(listing.description).font(.custom("NunitoSans", size: 16).weight(.regular)).foregroundColor(.secondary).lineSpacing(6)
+                        Text(listing.description ?? "No description provided.")
+                            .font(.custom("NunitoSans", size: 16).weight(.regular))
+                            .foregroundColor(.secondary)
+                            .lineSpacing(6)
                     }
                     .padding(.horizontal, 20).padding(.vertical, 24)
                     
                     Divider().padding(.horizontal, 20)
-                    
-                    HStack(alignment: .top, spacing: 16) {
-                        if let url = URL(string: listing.sellerAvatar) {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image {
-                                    image.resizable().aspectRatio(contentMode: .fill)
-                                } else {
-                                    Color(.systemGray5)
-                                }
-                            }
-                            .frame(width: 56, height: 56)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        } else {
-                            Color(.systemGray5).frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .center, spacing: 8) {
-                                Text(listing.sellerName).font(.custom("Montserrat", size: 17).weight(.semibold)).foregroundColor(.primary)
-                                HStack(spacing: 3) {
-                                    Image(systemName: "checkmark.shield.fill")
-                                    Text("Verified by ID.me")
-                                }
-                                .font(.custom("Montserrat", size: 10).weight(.bold)).foregroundColor(.green).padding(.horizontal, 6).padding(.vertical, 4).background(Color.green.opacity(0.15)).cornerRadius(6)
-                            }
-                            HStack(spacing: 4) {
-                                HStack(spacing: 2) { ForEach(0..<5, id: \.self) { _ in Image(systemName: "star.fill").font(.system(size: 12)).foregroundColor(.yellow) } }
-                                Text(String(format: "%.1f", listing.sellerRating)).font(.custom("Montserrat", size: 13).weight(.bold)).foregroundColor(.primary)
-                                Text("(\(listing.reviewCount) reviews)").font(.custom("NunitoSans", size: 13).weight(.regular)).foregroundColor(.secondary)
-                            }
-                            Text(listing.sellerType).font(.custom("NunitoSans", size: 14).weight(.regular)).foregroundColor(.secondary).padding(.top, 2)
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal, 20).padding(.vertical, 24)
                     
                     VStack(spacing: 12) {
                         GhostActionButton(
@@ -285,7 +257,6 @@ struct ListingDetailView: View {
                             isActive: appState.isFavorited(listing.id)
                         )
                         
-                        // FIX: Native ShareLink Ghost Button with Preview
                         ShareLink(
                             item: URL(string: "https://coriyonslist.app/listing/\(listing.id)")!,
                             preview: SharePreview(listing.title)
@@ -330,6 +301,7 @@ struct ListingDetailView: View {
                         }
                     }
                     .padding(.horizontal, 20)
+                    .padding(.top, 24)
                     
                     HStack {
                         Button(action: goPrev) { Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold)).frame(width: 56, height: 56).contentShape(Rectangle()) }
@@ -348,7 +320,7 @@ struct ListingDetailView: View {
             
             // Bottom Sticky Navigation Row
             VStack(spacing: 12) {
-                if listing.sellerName == "Coriyon Arrington" {
+                if listing.sellerId == SupabaseManager.shared.client.auth.currentUser?.id {
                     HStack(spacing: 16) {
                         Button(action: { showEditSheet = true }) {
                             Text("Edit Post")
@@ -418,8 +390,8 @@ struct ListingDetailView: View {
         .fullScreenCover(isPresented: $showChatRoom) {
             NavigationStack {
                 ChatRoom(
-                    contactName: listing.sellerName,
-                    contactAvatar: listing.sellerAvatar,
+                    contactName: "Supabase User",
+                    contactAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200",
                     initialListingId: listing.id,
                     autoFocus: true
                 )

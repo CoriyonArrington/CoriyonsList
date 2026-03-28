@@ -5,7 +5,8 @@ struct EditListingView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var appState: AppState
     
-    var listing: Listing
+    // Updated to use the live data model
+    var listing: LiveListing
     
     @State private var title: String = ""
     @State private var price: String = ""
@@ -16,13 +17,14 @@ struct EditListingView: View {
     
     let conditions = ["New", "Like New", "Excellent", "Good", "Fair", "Salvage"]
     
-    init(listing: Listing) {
+    // Updated initializer to accept LiveListing and handle optionals
+    init(listing: LiveListing) {
         self.listing = listing
         // Initialize state variables with the existing listing data
         _title = State(initialValue: listing.title)
         _price = State(initialValue: String(listing.price))
-        _itemDescription = State(initialValue: listing.description)
-        _condition = State(initialValue: listing.condition)
+        _itemDescription = State(initialValue: listing.description ?? "")
+        _condition = State(initialValue: listing.condition ?? "")
     }
     
     var body: some View {
@@ -149,24 +151,20 @@ struct EditListingView: View {
         if let index = appState.listings.firstIndex(where: { $0.id == listing.id }) {
             let oldListing = appState.listings[index]
             
-            let updatedListing = Listing(
+            // Rebuild using the LiveListing struct
+            let updatedListing = LiveListing(
                 id: oldListing.id,
+                sellerId: oldListing.sellerId,
                 title: title,
                 price: Int(price) ?? 0,
-                coordinate: oldListing.coordinate,
-                neighborhood: oldListing.neighborhood,
-                distance: oldListing.distance,
-                description: itemDescription,
+                description: itemDescription.isEmpty ? nil : itemDescription,
                 category: oldListing.category,
-                datePosted: oldListing.datePosted,
-                condition: condition,
+                subCategory: oldListing.subCategory,
+                condition: condition.isEmpty ? nil : condition,
+                neighborhood: oldListing.neighborhood,
                 images: oldListing.images,
-                sellerName: oldListing.sellerName,
-                sellerType: oldListing.sellerType,
-                sellerAvatar: oldListing.sellerAvatar,
-                sellerRating: oldListing.sellerRating,
-                reviewCount: oldListing.reviewCount,
-                tags: oldListing.tags
+                tags: oldListing.tags,
+                createdAt: oldListing.createdAt
             )
             
             appState.listings[index] = updatedListing

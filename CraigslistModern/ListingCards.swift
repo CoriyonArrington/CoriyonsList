@@ -2,8 +2,7 @@ import SwiftUI
 
 struct GalleryListingCard: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
-    var listing: Listing
+    var listing: LiveListing
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -11,7 +10,7 @@ struct GalleryListingCard: View {
                 .frame(height: 300)
                 .overlay(
                     Group {
-                        if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
+                        if let firstImageStr = listing.images?.first, let url = URL(string: firstImageStr) {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
                             }
@@ -24,10 +23,7 @@ struct GalleryListingCard: View {
                 )
                 .overlay(alignment: .topLeading) {
                     HStack(spacing: 8) {
-                        if listing.distance <= nearbyDistance {
-                            Text("Nearby").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 10).padding(.vertical, 6).background(.ultraThickMaterial).clipShape(Capsule())
-                        }
-                        if listing.datePosted >= Date().addingTimeInterval(-86400) {
+                        if let createdAt = listing.createdAt, createdAt >= Date().addingTimeInterval(-86400) {
                             Text("Just Listed").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 10).padding(.vertical, 6).background(.ultraThickMaterial).clipShape(Capsule())
                         }
                     }.padding(12)
@@ -35,7 +31,7 @@ struct GalleryListingCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.orange) // Always retains the orange stroke outline
+                        .foregroundColor(.orange)
                         .frame(width: 36, height: 36)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -51,20 +47,7 @@ struct GalleryListingCard: View {
                 }
                 
                 HStack(alignment: .center, spacing: 6) {
-                    if let url = URL(string: listing.sellerAvatar) {
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
-                            else { Color(.systemGray4) }
-                        }.frame(width: 20, height: 20).clipShape(Circle())
-                    } else {
-                        Circle().fill(Color(.systemGray4)).frame(width: 20, height: 20)
-                    }
-                    
-                    HStack(spacing: 2) {
-                        Image(systemName: "star.fill").font(.system(size: 11)).foregroundColor(.yellow)
-                        Text("\(String(format: "%.1f", listing.sellerRating)) (\(listing.reviewCount))").font(.custom("NunitoSans", size: 14).weight(.bold)).foregroundColor(.secondary)
-                    }
-                    Text("• \(String(format: "%.1f", listing.distance)) mi • \(listing.neighborhood)").font(.custom("NunitoSans", size: 14).weight(.medium)).foregroundColor(.secondary).lineLimit(1)
+                    Text(listing.neighborhood ?? "Local Area").font(.custom("NunitoSans", size: 14).weight(.medium)).foregroundColor(.secondary).lineLimit(1)
                     Spacer()
                 }
             }
@@ -78,8 +61,7 @@ struct GalleryListingCard: View {
 
 struct SquareListingCard: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
-    var listing: Listing; var size: CGFloat
+    var listing: LiveListing; var size: CGFloat
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -87,7 +69,7 @@ struct SquareListingCard: View {
                 .frame(width: size, height: size)
                 .overlay(
                     Group {
-                        if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
+                        if let firstImageStr = listing.images?.first, let url = URL(string: firstImageStr) {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
                             }
@@ -100,10 +82,7 @@ struct SquareListingCard: View {
                 )
                 .overlay(alignment: .topLeading) {
                     HStack(spacing: 6) {
-                        if listing.distance <= nearbyDistance {
-                            Text("Nearby").font(.custom("NunitoSans", size: 10).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 8).padding(.vertical, 4).background(.ultraThickMaterial).clipShape(Capsule())
-                        }
-                        if listing.datePosted >= Date().addingTimeInterval(-86400) {
+                        if let createdAt = listing.createdAt, createdAt >= Date().addingTimeInterval(-86400) {
                             Text("New").font(.custom("NunitoSans", size: 10).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 8).padding(.vertical, 4).background(.ultraThickMaterial).clipShape(Capsule())
                         }
                     }.padding(8)
@@ -111,7 +90,7 @@ struct SquareListingCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.orange) // Always retains the orange stroke outline
+                        .foregroundColor(.orange)
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -127,19 +106,7 @@ struct SquareListingCard: View {
                 }
                 
                 HStack(alignment: .center, spacing: 4) {
-                    if let url = URL(string: listing.sellerAvatar) {
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
-                            else { Color(.systemGray4) }
-                        }.frame(width: 14, height: 14).clipShape(Circle())
-                    } else {
-                        Circle().fill(Color(.systemGray4)).frame(width: 14, height: 14)
-                    }
-                    HStack(spacing: 2) {
-                        Image(systemName: "star.fill").font(.system(size: 9)).foregroundColor(.yellow)
-                        Text("\(String(format: "%.1f", listing.sellerRating))").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.secondary)
-                    }
-                    Text("• \(String(format: "%.1f", listing.distance)) mi").font(.custom("NunitoSans", size: 11).weight(.medium)).foregroundColor(.secondary).lineLimit(1)
+                    Text(listing.neighborhood ?? "Local Area").font(.custom("NunitoSans", size: 11).weight(.medium)).foregroundColor(.secondary).lineLimit(1)
                 }
             }
             .padding(10)
@@ -153,8 +120,7 @@ struct SquareListingCard: View {
 
 struct MapFeedCard: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
-    var listing: Listing
+    var listing: LiveListing
     
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -162,7 +128,7 @@ struct MapFeedCard: View {
                 .frame(width: 200, height: 220)
                 .overlay(
                     Group {
-                        if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
+                        if let firstImageStr = listing.images?.first, let url = URL(string: firstImageStr) {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
                             }
@@ -176,17 +142,14 @@ struct MapFeedCard: View {
             VStack(alignment: .leading) {
                 HStack(alignment: .top) {
                     HStack(spacing: 6) {
-                        if listing.distance <= nearbyDistance {
-                            Text("Nearby").font(.custom("NunitoSans", size: 10).weight(.bold)).foregroundColor(.black).padding(.horizontal, 8).padding(.vertical, 4).background(Color.white.opacity(0.9)).clipShape(Capsule())
-                        }
-                        if listing.datePosted >= Date().addingTimeInterval(-86400) {
+                        if let createdAt = listing.createdAt, createdAt >= Date().addingTimeInterval(-86400) {
                             Text("New").font(.custom("NunitoSans", size: 10).weight(.bold)).foregroundColor(.black).padding(.horizontal, 8).padding(.vertical, 4).background(Color.white.opacity(0.9)).clipShape(Capsule())
                         }
                     }
                     Spacer()
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.orange) // Always retains the orange stroke outline
+                        .foregroundColor(.orange)
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -201,20 +164,6 @@ struct MapFeedCard: View {
                         Spacer()
                         Text("$\(listing.price)").font(.custom("Montserrat", size: 20).weight(.heavy)).foregroundColor(Color.craigslistGreen)
                     }
-                    HStack(spacing: 4) {
-                        if let url = URL(string: listing.sellerAvatar) {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
-                                else { Color(.systemGray4) }
-                            }.frame(width: 16, height: 16).clipShape(Circle())
-                        } else {
-                            Circle().fill(Color(.systemGray4)).frame(width: 16, height: 16)
-                        }
-                        HStack(spacing: 2) {
-                            Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.yellow)
-                            Text("\(String(format: "%.1f", listing.sellerRating)) (\(listing.reviewCount))").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.white.opacity(0.9))
-                        }
-                    }
                 }
             }
             .padding(14)
@@ -227,8 +176,7 @@ struct MapFeedCard: View {
 
 struct GridListingCard: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
-    var listing: Listing
+    var listing: LiveListing
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -236,7 +184,7 @@ struct GridListingCard: View {
                 .frame(height: 160)
                 .overlay(
                     Group {
-                        if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
+                        if let firstImageStr = listing.images?.first, let url = URL(string: firstImageStr) {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
                             }
@@ -249,10 +197,7 @@ struct GridListingCard: View {
                 )
                 .overlay(alignment: .topLeading) {
                     HStack(spacing: 6) {
-                        if listing.distance <= nearbyDistance {
-                            Text("Nearby").font(.custom("NunitoSans", size: 10).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 8).padding(.vertical, 4).background(.ultraThickMaterial).clipShape(Capsule())
-                        }
-                        if listing.datePosted >= Date().addingTimeInterval(-86400) {
+                        if let createdAt = listing.createdAt, createdAt >= Date().addingTimeInterval(-86400) {
                             Text("New").font(.custom("NunitoSans", size: 10).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 8).padding(.vertical, 4).background(.ultraThickMaterial).clipShape(Capsule())
                         }
                     }.padding(8)
@@ -260,7 +205,7 @@ struct GridListingCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.orange) // Always retains the orange stroke outline
+                        .foregroundColor(.orange)
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -276,19 +221,7 @@ struct GridListingCard: View {
                 }
                 
                 HStack(alignment: .center, spacing: 4) {
-                    if let url = URL(string: listing.sellerAvatar) {
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
-                            else { Color(.systemGray4) }
-                        }.frame(width: 14, height: 14).clipShape(Circle())
-                    } else {
-                        Circle().fill(Color(.systemGray4)).frame(width: 14, height: 14)
-                    }
-                    HStack(spacing: 2) {
-                        Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.yellow)
-                        Text("\(String(format: "%.1f", listing.sellerRating))").font(.custom("NunitoSans", size: 11).weight(.bold)).foregroundColor(.secondary)
-                    }
-                    Text("• \(String(format: "%.1f", listing.distance)) mi").font(.custom("NunitoSans", size: 11).weight(.medium)).foregroundColor(.secondary).lineLimit(1)
+                    Text(listing.neighborhood ?? "Local Area").font(.custom("NunitoSans", size: 11).weight(.medium)).foregroundColor(.secondary).lineLimit(1)
                 }
             }
             .padding(12)
@@ -301,8 +234,7 @@ struct GridListingCard: View {
 
 struct ListListingCard: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
-    var listing: Listing
+    var listing: LiveListing
     
     var body: some View {
         HStack(spacing: 16) {
@@ -310,7 +242,7 @@ struct ListListingCard: View {
                 .frame(width: 110, height: 110)
                 .overlay(
                     Group {
-                        if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
+                        if let firstImageStr = listing.images?.first, let url = URL(string: firstImageStr) {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
                             }
@@ -322,7 +254,7 @@ struct ListListingCard: View {
                 .overlay(alignment: .topTrailing) {
                     Image(systemName: appState.isFavorited(listing.id) ? "heart.fill" : "heart")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.orange) // Always retains the orange stroke outline
+                        .foregroundColor(.orange)
                         .frame(width: 28, height: 28)
                         .background(.ultraThickMaterial)
                         .clipShape(Circle())
@@ -338,10 +270,7 @@ struct ListListingCard: View {
                 }
                 
                 HStack(spacing: 6) {
-                    if listing.distance <= nearbyDistance {
-                        Text("Nearby").font(.custom("NunitoSans", size: 10).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 6).padding(.vertical, 4).background(Color(.systemGray6)).clipShape(Capsule())
-                    }
-                    if listing.datePosted >= Date().addingTimeInterval(-86400) {
+                    if let createdAt = listing.createdAt, createdAt >= Date().addingTimeInterval(-86400) {
                         Text("New").font(.custom("NunitoSans", size: 10).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 6).padding(.vertical, 4).background(Color(.systemGray6)).clipShape(Capsule())
                     }
                 }
@@ -349,19 +278,7 @@ struct ListListingCard: View {
                 Spacer()
                 
                 HStack(alignment: .center, spacing: 6) {
-                    if let url = URL(string: listing.sellerAvatar) {
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
-                            else { Color(.systemGray4) }
-                        }.frame(width: 16, height: 16).clipShape(Circle())
-                    } else {
-                        Circle().fill(Color(.systemGray4)).frame(width: 16, height: 16)
-                    }
-                    HStack(spacing: 2) {
-                        Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.yellow)
-                        Text("\(String(format: "%.1f", listing.sellerRating))").font(.custom("NunitoSans", size: 12).weight(.bold)).foregroundColor(.secondary)
-                    }
-                    Text("• \(String(format: "%.1f", listing.distance)) mi • \(listing.neighborhood)").font(.custom("NunitoSans", size: 12).weight(.medium)).foregroundColor(.secondary).lineLimit(1)
+                    Text(listing.neighborhood ?? "Local Area").font(.custom("NunitoSans", size: 12).weight(.medium)).foregroundColor(.secondary).lineLimit(1)
                 }
             }
             .padding(.vertical, 4)

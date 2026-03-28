@@ -1,21 +1,24 @@
 import SwiftUI
+import Supabase
 
 struct FavoritesView: View {
     @EnvironmentObject var appState: AppState
     @State private var selectedListingID: UUID?
     @State private var isDetailPresented = false
     @State private var searchText = ""
-    @State private var listingToEdit: Listing?
+    
+    @State private var listingToEdit: LiveListing?
     
     let options = ["Favorites", "My Listings", "Voted", "Hidden"]
     
-    // Elevated to AppStorage so PostView can trigger a jump directly to "My Listings"
     @AppStorage("favoritesTabSelection") private var statusSelection = "Favorites"
     
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
     
-    var myListings: [Listing] {
-        appState.listings.filter { $0.sellerName == "Coriyon Arrington" }
+    // Filters by the authenticated Supabase user ID
+    var myListings: [LiveListing] {
+        guard let currentUserID = SupabaseManager.shared.client.auth.currentUser?.id else { return [] }
+        return appState.listings.filter { $0.sellerId == currentUserID }
     }
     
     var body: some View {
@@ -78,8 +81,6 @@ struct FavoritesView: View {
             }
         }
     }
-    
-    // MARK: - View Builders
     
     @ViewBuilder
     private func renderMyListings() -> some View {
@@ -167,15 +168,10 @@ struct FavoritesView: View {
         }
     }
     
-    // MARK: - Logic Helpers
-    
-    private func deleteListing(_ listing: Listing) {
+    private func deleteListing(_ listing: LiveListing) {
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
-        
-        withAnimation {
-            appState.listings.removeAll { $0.id == listing.id }
-        }
+        withAnimation { appState.listings.removeAll { $0.id == listing.id } }
         appState.triggerToast(message: "Listing Deleted")
     }
     
