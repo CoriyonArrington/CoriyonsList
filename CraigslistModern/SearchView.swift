@@ -8,8 +8,9 @@ struct SearchView: View {
     @State private var isDetailPresented = false
     @State private var selectedListingID: UUID?
     
-    var searchListings: [Listing] {
-        var results = appState.listings.filter { $0.tags.contains("search") }
+    // Updated to LiveListing and safely unwrapping the optional tags array
+    var searchListings: [LiveListing] {
+        var results = appState.listings.filter { $0.tags?.contains("search") == true }
         if let cat = appState.selectedSubCategory { results = results.filter { $0.category == cat } }
         return results
     }
@@ -54,7 +55,8 @@ struct SearchView: View {
             .onAppear {
                 if appState.selectedTab == 1 { DispatchQueue.main.async { isSearchFocused = true } }
             }
-            .onChange(of: appState.selectedTab) { newTab in
+            // Updated to the new iOS 17 closure syntax
+            .onChange(of: appState.selectedTab) { _, newTab in
                 if newTab == 1 { DispatchQueue.main.async { isSearchFocused = true } }
                 else { isSearchFocused = false }
             }
@@ -135,7 +137,8 @@ struct SearchView: View {
                     RecentSearchRow(
                         icon: "clock.arrow.circlepath",
                         title: listing.title,
-                        subtitle: "\(String(format: "%.1f", listing.distance)) miles • \(listing.neighborhood)",
+                        // Removed distance math and safely unwrapped the database neighborhood
+                        subtitle: listing.neighborhood ?? "Local Area",
                         isItem: true
                     )
                 }.buttonStyle(.plain)

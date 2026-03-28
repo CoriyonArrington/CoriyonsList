@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SwipeItem: Identifiable {
     let id: UUID
-    let listing: Listing
+    let listing: LiveListing
     let zIndex: Double
     var undoneAction: SwipeAction? = nil
 }
@@ -15,7 +15,7 @@ enum SwipeAction {
 
 struct SwipeFeedView: View {
     @EnvironmentObject var appState: AppState
-    var listings: [Listing]
+    var listings: [LiveListing]
     @Binding var selectedListingID: UUID?
     @Binding var isDetailPresented: Bool
     
@@ -26,7 +26,7 @@ struct SwipeFeedView: View {
     @State private var undoneItems: [UUID: SwipeAction] = [:]
     
     private var displayItems: [SwipeItem] {
-        var active: [Listing] = []
+        var active: [LiveListing] = []
         for listing in listings {
             if !swipedIDs.contains(listing.id) && !appState.hiddenIDs.contains(listing.id) && !appState.votedIDs.contains(listing.id) && !appState.favoriteIDs.contains(listing.id) {
                 active.append(listing)
@@ -98,8 +98,7 @@ struct SwipeFeedView: View {
 
 struct SwipeListingCard: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
-    var listing: Listing
+    var listing: LiveListing
     var proxy: ScrollViewProxy?
     
     var canUndo: Bool = false
@@ -119,7 +118,7 @@ struct SwipeListingCard: View {
             Color(.systemGray5)
                 .overlay(
                     Group {
-                        if let firstImageStr = listing.images.first, let url = URL(string: firstImageStr) {
+                        if let firstImageStr = listing.images?.first, let url = URL(string: firstImageStr) {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image {
                                     image.resizable().aspectRatio(contentMode: .fill)
@@ -141,10 +140,7 @@ struct SwipeListingCard: View {
             
             VStack {
                 HStack(spacing: 8) {
-                    if listing.distance <= nearbyDistance {
-                        Text("Nearby").font(.custom("NunitoSans", size: 12).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 10).padding(.vertical, 6).background(.ultraThickMaterial).clipShape(Capsule())
-                    }
-                    if listing.datePosted >= Date().addingTimeInterval(-86400) {
+                    if let createdAt = listing.createdAt, createdAt >= Date().addingTimeInterval(-86400) {
                         Text("Just Listed").font(.custom("NunitoSans", size: 12).weight(.bold)).foregroundColor(.primary).padding(.horizontal, 10).padding(.vertical, 6).background(.ultraThickMaterial).clipShape(Capsule())
                     }
                     Spacer()
@@ -160,28 +156,13 @@ struct SwipeListingCard: View {
                         Text("$\(listing.price)").font(.custom("Montserrat", size: 24).weight(.heavy)).foregroundColor(Color.craigslistGreen)
                     }
                     HStack(alignment: .center, spacing: 8) {
-                        if let url = URL(string: listing.sellerAvatar) {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image { image.resizable().aspectRatio(contentMode: .fill) }
-                                else { Color(.systemGray4) }
-                            }.frame(width: 24, height: 24).clipShape(Circle())
-                        } else {
-                            Circle().fill(Color(.systemGray4)).frame(width: 24, height: 24)
-                        }
-                        
-                        HStack(spacing: 4) {
-                            Image(systemName: "star.fill").font(.system(size: 14)).foregroundColor(.yellow)
-                            Text("\(String(format: "%.1f", listing.sellerRating)) (\(listing.reviewCount))").font(.custom("NunitoSans", size: 16).weight(.bold)).foregroundColor(.white)
-                        }
-                        
-                        Text("• \(String(format: "%.1f", listing.distance)) mi • \(listing.neighborhood)").font(.custom("NunitoSans", size: 15).weight(.medium)).foregroundColor(.white.opacity(0.9)).lineLimit(1)
+                        Text(listing.neighborhood ?? "Local Area").font(.custom("NunitoSans", size: 15).weight(.medium)).foregroundColor(.white.opacity(0.9)).lineLimit(1)
                     }
                 }
                 
                 HStack(spacing: 8) {
                     Spacer()
                     
-                    // 1. Hide
                     Button(action: { handleButtonTap(action: .hide) }) {
                         Image(systemName: "eye.slash.fill")
                             .font(.system(size: 20, weight: .bold))
@@ -192,7 +173,6 @@ struct SwipeListingCard: View {
                             .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     
-                    // 2. Thumbs Up
                     Button(action: { handleButtonTap(action: .vote) }) {
                         Image(systemName: isVoted ? "hand.thumbsup.fill" : "hand.thumbsup")
                             .font(.system(size: 22, weight: .bold))
@@ -203,7 +183,6 @@ struct SwipeListingCard: View {
                             .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     
-                    // 3. Favorite
                     Button(action: { handleButtonTap(action: .favorite) }) {
                         Image(systemName: isFavorited ? "heart.fill" : "heart")
                             .font(.system(size: 22, weight: .bold))
@@ -214,7 +193,6 @@ struct SwipeListingCard: View {
                             .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     
-                    // FIX: Native ShareLink
                     ShareLink(item: URL(string: "https://coriyonslist.app/listing/\(listing.id)")!) {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 20, weight: .bold))
@@ -225,7 +203,6 @@ struct SwipeListingCard: View {
                             .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     
-                    // 5. Undo
                     Button(action: onUndo) {
                         Image(systemName: "arrow.uturn.backward")
                             .font(.system(size: 22, weight: .bold))

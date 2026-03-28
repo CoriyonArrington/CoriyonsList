@@ -7,9 +7,9 @@ struct MapFeedView: View {
     
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     
-    var listings: [Listing]
-    var trendingListings: [Listing]
-    var recentListings: [Listing]
+    var listings: [LiveListing]
+    var trendingListings: [LiveListing]
+    var recentListings: [LiveListing]
     @Binding var selectedListingID: UUID?
     @Binding var isDetailPresented: Bool
     
@@ -73,7 +73,8 @@ struct MapFeedView: View {
         Map(position: $cameraPosition) {
             UserAnnotation()
             ForEach(listings, id: \.id) { listing in
-                Annotation(listing.title, coordinate: listing.coordinate) {
+                // PostGIS lat/lon extraction placeholder
+                Annotation(listing.title, coordinate: CLLocationCoordinate2D(latitude: 44.9778 + Double.random(in: -0.01...0.01), longitude: -93.2650 + Double.random(in: -0.01...0.01))) {
                     Button(action: {
                         selectedListingID = listing.id
                         isDetailPresented = true
@@ -131,9 +132,9 @@ struct MapPricePin: View {
 }
 
 struct MapBottomSheet: View {
-    var listings: [Listing]
-    var trendingListings: [Listing]
-    var recentListings: [Listing]
+    var listings: [LiveListing]
+    var trendingListings: [LiveListing]
+    var recentListings: [LiveListing]
     @Binding var selectedListingID: UUID?
     @Binding var isDetailPresented: Bool
     
@@ -198,7 +199,6 @@ struct MapBottomSheet: View {
                                 .padding(.horizontal, 16)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
-                                // FIX: Updated to LazyHStack to prevent AsyncImage flickering on load
                                 LazyHStack(spacing: 16) {
                                     ForEach(trendingListings, id: \.id) { listing in
                                         MapFeedCard(listing: listing)

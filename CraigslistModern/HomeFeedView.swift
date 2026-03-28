@@ -25,12 +25,12 @@ struct HomeFeedView: View {
         ("Jobs", "person.2.fill")
     ]
     
-    var baseFilteredListings: [Listing] {
-        var results = appState.listings.filter { $0.tags.contains("home") }
+    var baseFilteredListings: [LiveListing] {
+        var results = appState.listings.filter { $0.tags?.contains("home") == true }
         
         if let topCat = appState.selectedTopCategory {
             if let validSubs = appState.subCategories[topCat] {
-                results = results.filter { validSubs.contains($0.category) }
+                results = results.filter { validSubs.contains($0.category ?? "") }
             }
         }
         
@@ -38,25 +38,17 @@ struct HomeFeedView: View {
             results = results.filter { $0.category == subCat }
         }
         
-        if isNearbyMode {
-            results = results.filter { $0.distance <= nearbyDistance }
-        }
-        
         switch sortOption {
-        case .bestMatch:
-            break
-        case .priceLowToHigh:
-            results.sort { $0.price < $1.price }
-        case .priceHighToLow:
-            results.sort { $0.price > $1.price }
-        case .closestFirst:
-            results.sort { $0.distance < $1.distance }
+        case .bestMatch: break
+        case .priceLowToHigh: results.sort { $0.price < $1.price }
+        case .priceHighToLow: results.sort { $0.price > $1.price }
+        case .closestFirst: break // Handled by DB Radius natively
         }
         
         return results
     }
     
-    var homeListings: [Listing] {
+    var homeListings: [LiveListing] {
         baseFilteredListings.filter {
             !appState.hiddenIDs.contains($0.id) &&
             !appState.votedIDs.contains($0.id) &&
@@ -64,13 +56,11 @@ struct HomeFeedView: View {
         }
     }
     
-    // FIX: Production logic. No hardcoded limits or custom sorts.
-    // It seamlessly inherits the global sortOption, completely eliminating the image flicker.
-    var trendingListings: [Listing] {
-        return homeListings.filter { $0.sellerRating >= 4.5 && $0.reviewCount >= 5 }
+    var trendingListings: [LiveListing] {
+        return Array(homeListings.prefix(6))
     }
     
-    var recentListings: [Listing] {
+    var recentListings: [LiveListing] {
         let trendingIDs = Set(trendingListings.map { $0.id })
         return homeListings.filter { !trendingIDs.contains($0.id) }
     }
@@ -81,9 +71,7 @@ struct HomeFeedView: View {
                 Color(viewMode == .map ? .black : .systemGroupedBackground)
                     .ignoresSafeArea()
                 
-                if viewMode != .map {
-                    CraigslistPattern()
-                }
+                if viewMode != .map { CraigslistPattern() }
                 
                 if viewMode == .map {
                     MapFeedView(
@@ -119,9 +107,7 @@ struct HomeFeedView: View {
                         }
                     }
                     .refreshable {
-                        if isNearbyMode && nearbyDistance >= 50.0 {
-                            nearbyDistance = 3.0
-                        }
+                        if isNearbyMode && nearbyDistance >= 50.0 { nearbyDistance = 3.0 }
                         try? await Task.sleep(nanoseconds: 1_000_000_000)
                     }
                     .safeAreaInset(edge: .top) {
@@ -150,8 +136,7 @@ struct HomeFeedView: View {
                 Image(systemName: "magnifyingglass").font(.system(size: 48)).foregroundColor(Theme.Colors.primary)
             }
             VStack(spacing: 8) {
-                Text("No items nearby")
-                    .font(Theme.Typography.headingM())
+                Text("No items nearby").font(Theme.Typography.headingM())
                 Text("We couldn't find any more items in this radius. Try adjusting your filters or explore these popular categories instead:")
                     .font(Theme.Typography.body())
                     .foregroundColor(Theme.Colors.textSecondary)
@@ -198,7 +183,6 @@ struct HomeFeedView: View {
                         Text("\(trendingListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 16)
-                    
                     feedContent(for: viewMode, listings: trendingListings, proxy: proxy)
                 }.id("TrendingSection")
             }
@@ -211,7 +195,6 @@ struct HomeFeedView: View {
                         Text("\(recentListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 16)
-                    
                     feedContent(for: viewMode, listings: recentListings, proxy: proxy)
                 }.id("RecentSection")
             }
@@ -219,7 +202,7 @@ struct HomeFeedView: View {
     }
     
     @ViewBuilder
-    private func feedContent(for mode: ViewMode, listings: [Listing], proxy: ScrollViewProxy? = nil) -> some View {
+    private func feedContent(for mode: ViewMode, listings: [LiveListing], proxy: ScrollViewProxy? = nil) -> some View {
         if mode == .grid {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(listings, id: \.id) { listing in
