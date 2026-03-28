@@ -1,11 +1,19 @@
 import SwiftUI
 import MapKit
+import Supabase
+
+// A dedicated Encodable struct to securely send only the edited fields to Supabase
+struct UpdateListingPayload: Encodable {
+    let title: String
+    let price: Int
+    let description: String?
+    let condition: String?
+}
 
 struct EditListingView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var appState: AppState
     
-    // Updated to use the live data model
     var listing: LiveListing
     
     @State private var title: String = ""
@@ -13,14 +21,13 @@ struct EditListingView: View {
     @State private var itemDescription: String = ""
     @State private var condition: String = ""
     
+    @State private var isSaving = false
     @FocusState private var isInputFocused: Bool
     
     let conditions = ["New", "Like New", "Excellent", "Good", "Fair", "Salvage"]
     
-    // Updated initializer to accept LiveListing and handle optionals
     init(listing: LiveListing) {
         self.listing = listing
-        // Initialize state variables with the existing listing data
         _title = State(initialValue: listing.title)
         _price = State(initialValue: String(listing.price))
         _itemDescription = State(initialValue: listing.description ?? "")
@@ -95,7 +102,7 @@ struct EditListingView: View {
                         }
                     }
                     .padding(Theme.Spacing.screenMargin)
-                    .padding(.bottom, 100) // Padding for sticky bottom button
+                    .padding(.bottom, 100)
                 }
                 
                 // Sticky Save Button
@@ -103,10 +110,17 @@ struct EditListingView: View {
                     Divider().opacity(0.3)
                     VStack {
                         Button(action: saveUpdates) {
-                            Text("Save Changes")
+                            if isSaving {
+                                HStack(spacing: 8) {
+                                    ProgressView().tint(.white)
+                                    Text("Saving...")
+                                }
+                            } else {
+                                Text("Save Changes")
+                            }
                         }
-                        .buttonStyle(MSPPrimaryButtonStyle(isEnabled: isValid))
-                        .disabled(!isValid)
+                        .buttonStyle(MSPPrimaryButtonStyle(isEnabled: isValid && !isSaving))
+                        .disabled(!isValid || isSaving)
                         .padding(.horizontal, Theme.Spacing.screenMargin)
                         .padding(.top, Theme.Spacing.medium)
                         .padding(.bottom, Theme.Spacing.medium)
@@ -144,32 +158,57 @@ struct EditListingView: View {
     }
     
     private func saveUpdates() {
+        isSaving = true
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
         
-        // Find the listing in the global state and replace it entirely to bypass 'let' constant restrictions
-        if let index = appState.listings.firstIndex(where: { $0.id == listing.id }) {
-            let oldListing = appState.listings[index]
-            
-            // Rebuild using the LiveListing struct
-            let updatedListing = LiveListing(
-                id: oldListing.id,
-                sellerId: oldListing.sellerId,
-                title: title,
-                price: Int(price) ?? 0,
-                description: itemDescription.isEmpty ? nil : itemDescription,
-                category: oldListing.category,
-                subCategory: oldListing.subCategory,
-                condition: condition.isEmpty ? nil : condition,
-                neighborhood: oldListing.neighborhood,
-                images: oldListing.images,
-                tags: oldListing.tags,
-                createdAt: oldListing.createdAt
-            )
-            
-            appState.listings[index] = updatedListing
-            appState.triggerToast(message: "Changes Saved")
-            dismiss()
+        Task {
+            do {
+                let payload = UpdateListingPayload(
+                    title: title,
+                    price: Int(price) ?? 0,
+                    description: itemDescription.isEmpty ? nil : itemDescription,
+                    condition: condition.isEmpty ? nil : condition
+                )
+                
+                // Push edits to the live database
+                try await SupabaseManager.shared.client
+                    .from("listings")
+                    .update(payload)
+                    .eq("id", value: listing.id)
+                    .execute()
+                
+                await MainActor.run {
+                    // Update global UI state
+                    if let index = appState.listings.firstIndex(where: { $0.id == listing.id }) {
+                        let oldListing = appState.listings[index]
+                        let updatedListing = LiveListing(
+                            id: oldListing.id,
+                            sellerId: oldListing.sellerId,
+                            title: title,
+                            price: Int(price) ?? 0,
+                            description: itemDescription.isEmpty ? nil : itemDescription,
+                            category: oldListing.category,
+                            subCategory: oldListing.subCategory,
+                            condition: condition.isEmpty ? nil : condition,
+                            neighborhood: oldListing.neighborhood,
+                            images: oldListing.images,
+                            tags: oldListing.tags,
+                            createdAt: oldListing.createdAt
+                        )
+                        appState.listings[index] = updatedListing
+                    }
+                    appState.triggerToast(message: "Changes Saved")
+                    isSaving = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    print("Supabase Edit Error: \(error.localizedDescription)")
+                    appState.triggerToast(message: "Failed to save changes.")
+                    isSaving = false
+                }
+            }
         }
     }
 }
