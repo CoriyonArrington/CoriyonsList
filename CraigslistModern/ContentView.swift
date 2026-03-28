@@ -2,8 +2,8 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var appState = AppState()
+    @State private var isCheckingAuth = true
     
-    // Globally forces the TabBar to remain solid and never go transparent on scroll edges
     init() {
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
@@ -13,6 +13,31 @@ struct ContentView: View {
     }
     
     var body: some View {
+        ZStack {
+            if isCheckingAuth {
+                // Splash / Loading Screen
+                Color(.systemGroupedBackground).ignoresSafeArea()
+                ProgressView().scaleEffect(1.5).tint(Color.craigslistPurple)
+            } else if appState.isAuthenticated {
+                mainTabView
+            } else {
+                AuthView()
+            }
+        }
+        .environmentObject(appState)
+        .task {
+            await checkInitialSession()
+        }
+    }
+    
+    private func checkInitialSession() async {
+        await appState.checkAuth()
+        withAnimation {
+            isCheckingAuth = false
+        }
+    }
+    
+    private var mainTabView: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $appState.selectedTab) {
                 HomeFeedView()
@@ -54,6 +79,5 @@ struct ContentView: View {
                 .zIndex(100)
             }
         }
-        .environmentObject(appState)
     }
 }

@@ -5,6 +5,9 @@ import Clarity // Added Clarity import
 @main
 struct CraigslistModernApp: App {
     
+    // 1. Initialize your global live AppState
+    @StateObject private var appState = AppState()
+    
     init() {
         registerCustomFonts()
         
@@ -16,6 +19,8 @@ struct CraigslistModernApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // 2. Inject it into the environment so all sub-views can access Supabase data
+                .environmentObject(appState)
         }
     }
     

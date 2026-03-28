@@ -61,6 +61,24 @@ struct AccountView: View {
                             
                             ToggleRow(title: "Enable Swipe View", icon: "rectangle.stack.fill", isOn: $isSwipeViewEnabled)
                         }
+                        
+                        // Sign Out Button
+                        Button(action: {
+                            Task {
+                                await appState.signOut()
+                                dismiss()
+                            }
+                        }) {
+                            Text("Sign Out")
+                                .font(Theme.Typography.body(weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(Color.red)
+                                .cornerRadius(Theme.Radius.medium)
+                        }
+                        .padding(.horizontal, Theme.Spacing.screenMargin)
+                        .padding(.top, Theme.Spacing.large)
                     }
                     .padding(.bottom, 40)
                     .padding(.top, Theme.Spacing.small)
