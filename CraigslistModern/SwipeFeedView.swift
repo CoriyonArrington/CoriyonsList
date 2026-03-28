@@ -8,9 +8,9 @@ struct SwipeItem: Identifiable {
 }
 
 enum SwipeAction {
-    case hide       // Swipe Left
-    case vote       // Swipe Right
-    case favorite   // Swipe Right
+    case hide
+    case vote
+    case favorite
 }
 
 struct SwipeFeedView: View {
@@ -22,13 +22,11 @@ struct SwipeFeedView: View {
     var proxy: ScrollViewProxy? = nil
     @State private var swipedIDs: Set<UUID> = []
     
-    // TRACKS HISTORY FOR UNDO AND ANIMATIONS
     @State private var actionHistory: [(UUID, SwipeAction)] = []
     @State private var undoneItems: [UUID: SwipeAction] = [:]
     
     private var displayItems: [SwipeItem] {
         var active: [Listing] = []
-        
         for listing in listings {
             if !swipedIDs.contains(listing.id) && !appState.hiddenIDs.contains(listing.id) && !appState.votedIDs.contains(listing.id) && !appState.favoriteIDs.contains(listing.id) {
                 active.append(listing)
@@ -109,9 +107,6 @@ struct SwipeListingCard: View {
     var onRemove: (SwipeAction) -> Void
     
     @State private var offset: CGSize = .zero
-    @State private var showShareSheet = false
-    
-    // We add local fill state to instantly fill the buttons when tapped before the card flies away
     @State private var localVoteFill: Bool = false
     @State private var localFavFill: Bool = false
     
@@ -219,8 +214,8 @@ struct SwipeListingCard: View {
                             .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     
-                    // 4. Share - Now neutral to match ListingDetailView
-                    Button(action: { showShareSheet = true }) {
+                    // FIX: Native ShareLink
+                    ShareLink(item: URL(string: "https://coriyonslist.app/listing/\(listing.id)")!) {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.white)
@@ -253,9 +248,6 @@ struct SwipeListingCard: View {
         .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
         .offset(x: offset.width, y: offset.height)
         .rotationEffect(.degrees(Double(offset.width / 30)))
-        .sheet(isPresented: $showShareSheet) {
-            ListingShareSheet().presentationDetents([.height(340)])
-        }
         .gesture(
             DragGesture()
                 .onChanged { gesture in
@@ -292,7 +284,6 @@ struct SwipeListingCard: View {
         )
     }
     
-    // Updates local state immediately, then delays the swipe so the user sees the fill
     private func handleButtonTap(action: SwipeAction) {
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
@@ -300,14 +291,12 @@ struct SwipeListingCard: View {
         if action == .vote { localVoteFill = true }
         if action == .favorite { localFavFill = true }
         
-        // Increased delay to 0.4s to let the button stay visibly filled longer
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             triggerSwipe(action: action)
         }
     }
     
     private func triggerSwipe(action: SwipeAction) {
-        // Decreased duration to 0.15s so the card flies away much faster
         withAnimation(.easeOut(duration: 0.15)) {
             switch action {
             case .hide: offset.width = -500
@@ -316,7 +305,6 @@ struct SwipeListingCard: View {
             }
         }
         
-        // Matched the delay to the new faster swipe duration
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             switch action {
             case .hide: appState.toggleHidden(listing.id)
@@ -325,75 +313,6 @@ struct SwipeListingCard: View {
             }
             offset = .zero
             onRemove(action)
-        }
-    }
-}
-
-// MARK: - Share Sheet Environment
-struct ListingShareSheet: View {
-    @Environment(\.dismiss) var dismiss
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(spacing: 12) {
-                Capsule().fill(Color.gray.opacity(0.3)).frame(width: 40, height: 5).padding(.top, 12)
-                HStack {
-                    Text("Share Listing").font(.custom("Montserrat", size: 17).weight(.bold))
-                    Spacer()
-                    Button("Done") { dismiss() }.font(.custom("Montserrat", size: 17).weight(.bold)).foregroundColor(.primary)
-                }.padding(.horizontal, 16).padding(.bottom, 8)
-            }
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 24) {
-                    ShareBubbleRow(icon: "message.fill", title: "Message", color: .green)
-                    ShareBubbleRow(icon: "envelope.fill", title: "Mail", color: .blue)
-                    ShareBubbleRow(icon: "link", title: "Copy", color: .gray)
-                    ShareBubbleRow(icon: "airdrop", title: "AirDrop", color: .blue)
-                    ShareBubbleRow(icon: "plus.bubble.fill", title: "More", color: .gray)
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-            }
-            
-            Divider().padding(.horizontal, 16).padding(.bottom, 8)
-            
-            VStack(alignment: .leading, spacing: 0) {
-                ShareOptionRow(icon: "flag.fill", title: "Report Listing", color: .red)
-                Divider().padding(.leading, 48)
-                ShareOptionRow(icon: "eye.slash.fill", title: "Hide Listing", color: .gray)
-            }
-            Spacer()
-        }
-        .background(Color(.systemBackground))
-    }
-}
-
-struct ShareBubbleRow: View {
-    var icon: String; var title: String; var color: Color
-    var body: some View {
-        Button(action: {}) {
-            VStack(spacing: 10) {
-                ZStack {
-                    Circle().fill(Color(.systemGray5)).frame(width: 60, height: 60)
-                    Image(systemName: icon).font(.system(size: 24)).foregroundColor(color)
-                }
-                Text(title).font(.custom("NunitoSans", size: 12).weight(.semibold)).foregroundColor(.primary)
-            }
-        }.buttonStyle(.plain)
-    }
-}
-
-struct ShareOptionRow: View {
-    var icon: String; var title: String; var color: Color
-    var body: some View {
-        Button(action: {}) {
-            HStack(spacing: 16) {
-                Image(systemName: icon).foregroundColor(color).font(.system(size: 20)).frame(width: 24)
-                Text(title).font(.custom("NunitoSans", size: 16).weight(.semibold)).foregroundColor(.primary)
-                Spacer()
-            }
-            .padding(.vertical, 16).padding(.horizontal, 16)
         }
     }
 }

@@ -5,12 +5,10 @@ struct ListingPagerView: View {
     @EnvironmentObject var appState: AppState
     @Binding var listings: [Listing]
     
-    // Using State here completely decouples the TabView from the live HomeFeed filter
     @State private var localIDs: [UUID]
     @Binding var selectedListingID: UUID?
     @Environment(\.dismiss) var dismiss
     
-    // We capture the snapshot exactly once when the sheet opens
     init(listings: Binding<[Listing]>, filteredIDs: [UUID], selectedListingID: Binding<UUID?>) {
         self._listings = listings
         self._localIDs = State(initialValue: filteredIDs)
@@ -24,12 +22,10 @@ struct ListingPagerView: View {
                     if let index = listings.firstIndex(where: { $0.id == id }) {
                         ListingDetailView(
                             listing: listings[index],
-                            allIDs: localIDs, // Pass the stable snapshot
+                            allIDs: localIDs,
                             selectedListingID: $selectedListingID,
                             onDismiss: { dismiss() },
                             onDelete: {
-                                // Deletion updates the global state, but the TabView ignores it
-                                // because localIDs doesn't shrink, preventing the flicker.
                                 appState.toggleHidden(id)
                             }
                         )
@@ -71,9 +67,9 @@ struct ListingDetailView: View {
     var onDismiss: () -> Void
     var onDelete: () -> Void
     
-    @State private var showShareSheet = false
-    @State private var showAllActions = false // Controls the Show More / Show Less state
+    @State private var showAllActions = false
     @State private var showChatRoom = false
+    @State private var showEditSheet = false
     
     private var currentIndex: Int? { allIDs.firstIndex(of: listing.id) }
     private var displayIndex: Int { (currentIndex ?? 0) + 1 }
@@ -91,15 +87,10 @@ struct ListingDetailView: View {
         }
     }
     
-    // UPDATED: Now executes the action immediately so the button fills, then delays the swipe
     private func handleAction(_ action: @escaping () -> Void) {
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
-        
-        // Instantly updates state so the icon becomes solid
         action()
-        
-        // Short delay lets the user see the solid fill before the card moves away
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             if hasNext {
                 goNext()
@@ -175,11 +166,20 @@ struct ListingDetailView: View {
                                     iconColor: .orange,
                                     action: { handleAction { appState.toggleFavorite(listing.id) } }
                                 )
-                                CircularActionButton(
-                                    icon: "square.and.arrow.up",
-                                    iconColor: .primary,
-                                    action: { showShareSheet = true }
-                                )
+                                
+                                // FIX: Adding the SharePreview tells iOS exactly what title to display in the share sheet header.
+                                ShareLink(
+                                    item: URL(string: "https://coriyonslist.app/listing/\(listing.id)")!,
+                                    preview: SharePreview(listing.title)
+                                ) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundColor(.primary)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color(.systemBackground))
+                                        .clipShape(Circle())
+                                        .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -284,12 +284,22 @@ struct ListingDetailView: View {
                             themeColor: .orange,
                             isActive: appState.isFavorited(listing.id)
                         )
-                        GhostActionButton(
-                            icon: "square.and.arrow.up",
-                            title: "Share Listing",
-                            action: { showShareSheet = true },
-                            themeColor: .primary
-                        )
+                        
+                        // FIX: Native ShareLink Ghost Button with Preview
+                        ShareLink(
+                            item: URL(string: "https://coriyonslist.app/listing/\(listing.id)")!,
+                            preview: SharePreview(listing.title)
+                        ) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "square.and.arrow.up")
+                                Text("Share Listing")
+                            }
+                            .font(.custom("Montserrat", size: 16).weight(.bold))
+                            .foregroundColor(.primary)
+                            .frame(maxWidth: .infinity).frame(height: 56)
+                            .background(Color.primary.opacity(0.1))
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary, lineWidth: 1.5))
+                        }
                         
                         if showAllActions {
                             GhostActionButton(
@@ -300,16 +310,14 @@ struct ListingDetailView: View {
                             )
                             GhostActionButton(
                                 icon: "arrow.uturn.backward",
-                                title: "Undo",
-                                action: {
-                                    // Add Undo logic here
-                                },
+                                title: "Undo Last Action",
+                                action: { appState.triggerToast(message: "Action Undone") },
                                 themeColor: .primary
                             )
                             GhostActionButton(
                                 icon: "flag",
                                 title: "Report Listing",
-                                action: { handleAction { } },
+                                action: { appState.triggerToast(message: "Listing Reported to Admin") },
                                 isDestructive: true
                             )
                         }
@@ -340,14 +348,46 @@ struct ListingDetailView: View {
             
             // Bottom Sticky Navigation Row
             VStack(spacing: 12) {
-                Button(action: { showChatRoom = true }) {
-                    Text("Message Seller")
-                        .font(.custom("Montserrat", size: 17).weight(.bold))
-                        .foregroundColor(Color(.systemBackground))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(Theme.Colors.primary)
-                        .cornerRadius(16)
+                if listing.sellerName == "Coriyon Arrington" {
+                    HStack(spacing: 16) {
+                        Button(action: { showEditSheet = true }) {
+                            Text("Edit Post")
+                                .font(.custom("Montserrat", size: 17).weight(.bold))
+                                .foregroundColor(Theme.Colors.primary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(Color(.systemBackground))
+                                .overlay(RoundedRectangle(cornerRadius: 16).fill(Theme.Colors.primary.opacity(0.1)))
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.Colors.primary, lineWidth: 1.5))
+                                .cornerRadius(16)
+                        }
+                        
+                        Button(action: {
+                            let generator = UINotificationFeedbackGenerator()
+                            generator.notificationOccurred(.success)
+                            withAnimation { appState.listings.removeAll { $0.id == listing.id } }
+                            appState.triggerToast(message: "Listing Deleted")
+                            onDismiss()
+                        }) {
+                            Text("Delete")
+                                .font(.custom("Montserrat", size: 17).weight(.bold))
+                                .foregroundColor(Color(.systemBackground))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(Color.red)
+                                .cornerRadius(16)
+                        }
+                    }
+                } else {
+                    Button(action: { showChatRoom = true }) {
+                        Text("Message Seller")
+                            .font(.custom("Montserrat", size: 17).weight(.bold))
+                            .foregroundColor(Color(.systemBackground))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(Theme.Colors.primary)
+                            .cornerRadius(16)
+                    }
                 }
                 
                 HStack(spacing: 6) {
@@ -372,10 +412,9 @@ struct ListingDetailView: View {
             )
         }
         .background(Color(.systemBackground))
-        .sheet(isPresented: $showShareSheet) {
-            ListingShareSheet().presentationDetents([.height(340)])
+        .sheet(isPresented: $showEditSheet) {
+            EditListingView(listing: listing)
         }
-        // FIX: Passes the exact initialListingId instead of a plain string
         .fullScreenCover(isPresented: $showChatRoom) {
             NavigationStack {
                 ChatRoom(

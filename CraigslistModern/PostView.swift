@@ -23,7 +23,10 @@ struct PostView: View {
     @State private var isGeneratingDetails = false
     @State private var hasGeneratedDetails = false
     
+    // Overlays & Focus
     @FocusState private var isInputFocused: Bool
+    @State private var showLocationSheet = false
+    @State private var showPreviewDetail = false
     
     let conditions = ["New", "Like New", "Excellent", "Good", "Fair", "Salvage"]
     
@@ -99,6 +102,42 @@ struct PostView: View {
             }
             .onTapGesture {
                 isInputFocused = false
+            }
+            // Trigger the native location sheet for edits
+            .sheet(isPresented: $showLocationSheet) {
+                LocationSelectionSheet().presentationDetents([.medium, .large])
+            }
+            // Real Full Screen Preview of the active draft
+            .fullScreenCover(isPresented: $showPreviewDetail) {
+                let previewListing = Listing(
+                    id: UUID(),
+                    title: title.isEmpty ? "Untitled Listing" : title,
+                    price: Int(price) ?? 0,
+                    coordinate: CLLocationCoordinate2D(latitude: 44.9778, longitude: -93.2650),
+                    neighborhood: appState.selectedLocation,
+                    distance: 0.1,
+                    description: itemDescription.isEmpty ? "No description provided." : itemDescription,
+                    category: selectedSubCategory ?? selectedTopCategory ?? "For Sale",
+                    datePosted: Date(),
+                    condition: condition,
+                    images: saveImagesLocally(),
+                    sellerName: "Coriyon Arrington",
+                    sellerType: "Private Owner",
+                    sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200",
+                    sellerRating: 5.0,
+                    reviewCount: 0,
+                    tags: ["preview"]
+                )
+                
+                NavigationStack {
+                    ListingDetailView(
+                        listing: previewListing,
+                        allIDs: [previewListing.id],
+                        selectedListingID: .constant(previewListing.id),
+                        onDismiss: { showPreviewDetail = false },
+                        onDelete: { showPreviewDetail = false }
+                    )
+                }
             }
         }
     }
@@ -430,7 +469,11 @@ struct PostView: View {
                         Image(systemName: "location.fill").foregroundColor(Theme.Colors.primary).font(.system(size: 18))
                         Text(appState.selectedLocation).font(Theme.Typography.body(weight: .bold)).foregroundColor(.primary)
                         Spacer()
-                        Text("Edit").font(Theme.Typography.caption(weight: .bold)).foregroundColor(Theme.Colors.actionPrimary)
+                        
+                        // Active Location Edit Button
+                        Button(action: { showLocationSheet = true }) {
+                            Text("Edit").font(Theme.Typography.caption(weight: .bold)).foregroundColor(Theme.Colors.actionPrimary)
+                        }
                     }
                     .padding(.horizontal, Theme.Spacing.medium)
                     .frame(minHeight: 56)
@@ -442,27 +485,33 @@ struct PostView: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                     Text("LISTING PREVIEW").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
                     
-                    HStack(spacing: Theme.Spacing.medium) {
-                        if let firstImg = selectedImages.first {
-                            Image(uiImage: firstImg)
-                                .resizable().scaledToFill().frame(width: 88, height: 88).clipShape(RoundedRectangle(cornerRadius: Theme.Radius.small))
-                        } else {
-                            Color(.systemGray4).frame(width: 88, height: 88).cornerRadius(Theme.Radius.small)
-                                .overlay(Image(systemName: "photo").font(.system(size: 24)).foregroundColor(.gray))
+                    // Active Preview Button
+                    Button(action: { showPreviewDetail = true }) {
+                        HStack(spacing: Theme.Spacing.medium) {
+                            if let firstImg = selectedImages.first {
+                                Image(uiImage: firstImg)
+                                    .resizable().scaledToFill().frame(width: 88, height: 88).clipShape(RoundedRectangle(cornerRadius: Theme.Radius.small))
+                            } else {
+                                Color(.systemGray4).frame(width: 88, height: 88).cornerRadius(Theme.Radius.small)
+                                    .overlay(Image(systemName: "photo").font(.system(size: 24)).foregroundColor(.gray))
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(title.isEmpty ? "Untitled Listing" : title)
+                                    .font(Theme.Typography.body(weight: .bold)).foregroundColor(.primary).lineLimit(1)
+                                Text("$\(price.isEmpty ? "0" : price)")
+                                    .font(Theme.Typography.body(weight: .heavy)).foregroundColor(Theme.Colors.success)
+                                Text("\(selectedSubCategory ?? selectedTopCategory ?? "For Sale") • \(condition)")
+                                    .font(Theme.Typography.caption(weight: .semibold)).foregroundColor(Theme.Colors.textSecondary).lineLimit(1)
+                            }
+                            Spacer()
                         }
-                        
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(title.isEmpty ? "Untitled Listing" : title).font(Theme.Typography.body(weight: .bold)).lineLimit(1)
-                            Text("$\(price.isEmpty ? "0" : price)").font(Theme.Typography.body(weight: .heavy)).foregroundColor(Theme.Colors.success)
-                            Text("\(selectedSubCategory ?? selectedTopCategory ?? "For Sale") • \(condition)")
-                                .font(Theme.Typography.caption(weight: .semibold)).foregroundColor(Theme.Colors.textSecondary).lineLimit(1)
-                        }
-                        Spacer()
+                        .padding(Theme.Spacing.medium)
+                        .background(Theme.Colors.inputBackground)
+                        .cornerRadius(Theme.Radius.medium)
+                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Color.primary.opacity(0.1), lineWidth: 1))
                     }
-                    .padding(Theme.Spacing.medium)
-                    .background(Theme.Colors.inputBackground)
-                    .cornerRadius(Theme.Radius.medium)
-                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, Theme.Spacing.screenMargin)
@@ -517,7 +566,6 @@ struct PostView: View {
                         withAnimation {
                             self.isScanningImage = false
                             self.showAIInsights = true
-                            // FIX: Automatically pre-fill the form upon successful AI scan
                             if self.title.isEmpty { self.title = "Standing Desk" }
                             if self.price.isEmpty { self.price = "150" }
                         }
@@ -565,7 +613,6 @@ struct PostView: View {
         
         withAnimation { appState.listings.insert(newListing, at: 0) }
         
-        // FIX: Directly route the user to My Listings and show the toast
         resetForm()
         UserDefaults.standard.set("My Listings", forKey: "favoritesTabSelection")
         appState.selectedTab = 3
