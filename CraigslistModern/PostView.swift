@@ -3,10 +3,39 @@ import MapKit
 import PhotosUI
 import Supabase
 
+struct InsertListingPayload: Encodable {
+    let id: UUID
+    let sellerId: UUID
+    let title: String
+    let price: Int
+    let description: String?
+    let category: String?
+    let subCategory: String?
+    let condition: String?
+    let neighborhood: String?
+    let location: String
+    let images: [String]?
+    let tags: [String]?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sellerId = "seller_id"
+        case title
+        case price
+        case description
+        case category
+        case subCategory = "sub_category"
+        case condition
+        case neighborhood
+        case location
+        case images
+        case tags
+    }
+}
+
 struct PostView: View {
     @EnvironmentObject var appState: AppState
     
-    // MARK: - Form State
     @State private var currentStep = 1
     @State private var title = ""
     @State private var price = ""
@@ -15,7 +44,6 @@ struct PostView: View {
     @State private var selectedTopCategory: String? = nil
     @State private var selectedSubCategory: String? = nil
     
-    // PhotosUI & AI State
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var selectedImages: [UIImage] = []
     
@@ -24,7 +52,8 @@ struct PostView: View {
     @State private var isGeneratingDetails = false
     @State private var hasGeneratedDetails = false
     
-    // Overlays & Focus
+    @State private var isPublishing = false
+    
     @FocusState private var isInputFocused: Bool
     @State private var showLocationSheet = false
     @State private var showPreviewDetail = false
@@ -85,10 +114,9 @@ struct PostView: View {
             .onTapGesture { isInputFocused = false }
             .sheet(isPresented: $showLocationSheet) { LocationSelectionSheet().presentationDetents([.medium, .large]) }
             .fullScreenCover(isPresented: $showPreviewDetail) {
-                // Generates a mock LiveListing for the preview
                 let previewListing = LiveListing(
                     id: UUID(),
-                    sellerId: SupabaseManager.shared.client.auth.currentUser?.id ?? UUID(),
+                    sellerId: appState.currentUserID ?? UUID(),
                     title: title.isEmpty ? "Untitled Listing" : title,
                     price: Int(price) ?? 0,
                     description: itemDescription.isEmpty ? "No description provided." : itemDescription,
@@ -96,7 +124,7 @@ struct PostView: View {
                     subCategory: selectedSubCategory,
                     condition: condition,
                     neighborhood: appState.selectedLocation,
-                    images: saveImagesLocally(),
+                    images: generateTempPreviewURLs(),
                     tags: ["preview"],
                     createdAt: Date()
                 )
@@ -122,10 +150,17 @@ struct PostView: View {
                     if currentStep < 3 { advanceStep() }
                     else { publishListing() }
                 }) {
-                    Text(currentStep < 3 ? "Next" : "Post")
+                    if isPublishing {
+                        HStack(spacing: 8) {
+                            ProgressView().tint(.white)
+                            Text("Publishing...")
+                        }
+                    } else {
+                        Text(currentStep < 3 ? "Next" : "Post")
+                    }
                 }
-                .buttonStyle(MSPPrimaryButtonStyle(isEnabled: canProceed))
-                .disabled(!canProceed)
+                .buttonStyle(MSPPrimaryButtonStyle(isEnabled: canProceed && !isPublishing))
+                .disabled(!canProceed || isPublishing)
                 .padding(.horizontal, Theme.Spacing.screenMargin)
                 .padding(.top, Theme.Spacing.medium)
                 .padding(.bottom, Theme.Spacing.medium)
@@ -177,14 +212,13 @@ struct PostView: View {
                         VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
                             HStack { Image(systemName: "sparkles"); Text("AI Insights").font(Theme.Typography.caption(weight: .bold)) }.foregroundColor(Theme.Colors.primary)
                             Text("Looks like a **Standing Desk**!").font(Theme.Typography.caption()).foregroundColor(.primary)
-                            // AI suggestions omitted for brevity
                         }
                         .padding(Theme.Spacing.large).background(Theme.Colors.surfaceCard).cornerRadius(Theme.Radius.medium)
                         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Theme.Colors.primary.opacity(0.2), lineWidth: 1))
                         .padding(.top, Theme.Spacing.small).transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                // FIXED: iOS 17 onChange signature
+                // Updated iOS 17 Modifier
                 .onChange(of: selectedPhotoItems) { _, newItems in loadSelectedPhotos(from: newItems) }
                 
                 VStack(alignment: .leading, spacing: Theme.Spacing.small) {
@@ -214,7 +248,6 @@ struct PostView: View {
                         Text("Drafting description...").font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
                     }.frame(maxWidth: .infinity).padding(.top, 60)
                 } else {
-                    // Basic forms
                     VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                         Text("DESCRIPTION").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
                         TextEditor(text: $itemDescription)
@@ -231,7 +264,35 @@ struct PostView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: Theme.Spacing.section) {
                 Text("Review & Post").font(Theme.Typography.headingL()).padding(.top, Theme.Spacing.large)
-                // Preview UI goes here
+                
+                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                    Text("LISTING PREVIEW").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                    
+                    Button(action: { showPreviewDetail = true }) {
+                        HStack(spacing: Theme.Spacing.medium) {
+                            if let firstImg = selectedImages.first {
+                                Image(uiImage: firstImg)
+                                    .resizable().scaledToFill().frame(width: 88, height: 88).clipShape(RoundedRectangle(cornerRadius: Theme.Radius.small))
+                            } else {
+                                Color(.systemGray4).frame(width: 88, height: 88).cornerRadius(Theme.Radius.small)
+                                    .overlay(Image(systemName: "photo").font(.system(size: 24)).foregroundColor(.gray))
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(title.isEmpty ? "Untitled Listing" : title)
+                                    .font(Theme.Typography.body(weight: .bold)).foregroundColor(.primary).lineLimit(1)
+                                Text("$\(price.isEmpty ? "0" : price)")
+                                    .font(Theme.Typography.body(weight: .heavy)).foregroundColor(Theme.Colors.success)
+                            }
+                            Spacer()
+                        }
+                        .padding(Theme.Spacing.medium)
+                        .background(Theme.Colors.inputBackground)
+                        .cornerRadius(Theme.Radius.medium)
+                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
             }.padding(.horizontal, Theme.Spacing.screenMargin)
         }
     }
@@ -262,38 +323,123 @@ struct PostView: View {
         }
     }
     
-    private func saveImagesLocally() -> [String] {
-        return ["https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?q=80&w=800"]
+    private func generateTempPreviewURLs() -> [String] {
+        var urls: [String] = []
+        for image in selectedImages {
+            if let data = image.jpegData(compressionQuality: 0.8) {
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+                try? data.write(to: url); urls.append(url.absoluteString)
+            }
+        }
+        if urls.isEmpty { urls.append("https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?q=80&w=800") }
+        return urls
+    }
+    
+    private func uploadImagesToSupabase() async throws -> [String] {
+        var uploadedURLs: [String] = []
+        let bucket = SupabaseManager.shared.client.storage.from("listing-images")
+        
+        for image in selectedImages {
+            guard let imageData = image.jpegData(compressionQuality: 0.8) else { continue }
+            
+            let fileName = "\(UUID().uuidString).jpg"
+            let filePath = "\(appState.currentUserID?.uuidString ?? "unknown")/\(fileName)"
+            
+            // Updated SDK parameter mapping `file:` to `data:`
+            try await bucket.upload(
+                filePath,
+                data: imageData,
+                options: FileOptions(contentType: "image/jpeg")
+            )
+            
+            let publicURL = try bucket.getPublicURL(path: filePath)
+            uploadedURLs.append(publicURL.absoluteString)
+        }
+        
+        if uploadedURLs.isEmpty {
+            uploadedURLs.append("https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?q=80&w=800")
+        }
+        
+        return uploadedURLs
     }
     
     private func publishListing() {
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
         
-        let newListing = LiveListing(
-            id: UUID(),
-            sellerId: SupabaseManager.shared.client.auth.currentUser?.id ?? UUID(),
-            title: title.isEmpty ? "Untitled Listing" : title,
-            price: Int(price) ?? 0,
-            description: itemDescription.isEmpty ? nil : itemDescription,
-            category: selectedSubCategory ?? selectedTopCategory ?? "For Sale",
-            subCategory: selectedSubCategory,
-            condition: condition,
-            neighborhood: appState.selectedLocation,
-            images: saveImagesLocally(),
-            tags: ["home", "search"],
-            createdAt: Date()
-        )
+        isPublishing = true
         
-        withAnimation { appState.listings.insert(newListing, at: 0) }
-        
-        resetForm()
-        UserDefaults.standard.set("My Listings", forKey: "favoritesTabSelection")
-        appState.selectedTab = 3
-        appState.triggerToast(message: "Listing Published Successfully")
+        Task {
+            do {
+                let finalImageURLs = try await uploadImagesToSupabase()
+                
+                let newListing = LiveListing(
+                    id: UUID(),
+                    sellerId: appState.currentUserID ?? UUID(),
+                    title: title.isEmpty ? "Untitled Listing" : title,
+                    price: Int(price) ?? 0,
+                    description: itemDescription.isEmpty ? nil : itemDescription,
+                    category: selectedSubCategory ?? selectedTopCategory ?? "For Sale",
+                    subCategory: selectedSubCategory,
+                    condition: condition,
+                    neighborhood: appState.selectedLocation,
+                    images: finalImageURLs,
+                    tags: ["home", "search"],
+                    createdAt: Date()
+                )
+                
+                let insertPayload = InsertListingPayload(
+                    id: newListing.id,
+                    sellerId: newListing.sellerId,
+                    title: newListing.title,
+                    price: newListing.price,
+                    description: newListing.description,
+                    category: newListing.category,
+                    subCategory: newListing.subCategory,
+                    condition: newListing.condition,
+                    neighborhood: newListing.neighborhood,
+                    location: "POINT(-93.2650 44.9778)",
+                    images: newListing.images,
+                    tags: newListing.tags
+                )
+                
+                try await SupabaseManager.shared.client
+                    .from("listings")
+                    .insert(insertPayload)
+                    .execute()
+                
+                await MainActor.run {
+                    withAnimation { appState.listings.insert(newListing, at: 0) }
+                    resetForm()
+                    UserDefaults.standard.set("My Listings", forKey: "favoritesTabSelection")
+                    appState.selectedTab = 3
+                    appState.triggerToast(message: "Listing Published Successfully")
+                }
+            } catch {
+                print("Publish Error: \(error)")
+                await MainActor.run {
+                    appState.triggerToast(message: "Failed to publish listing. Please try again.")
+                    isPublishing = false
+                }
+            }
+        }
     }
     
     private func resetForm() {
-        currentStep = 1; title = ""; price = ""; isInputFocused = false
+        currentStep = 1
+        title = ""
+        price = ""
+        itemDescription = ""
+        condition = "Like New"
+        selectedTopCategory = nil
+        selectedSubCategory = nil
+        selectedPhotoItems.removeAll()
+        selectedImages.removeAll()
+        isScanningImage = false
+        showAIInsights = false
+        isGeneratingDetails = false
+        hasGeneratedDetails = false
+        isInputFocused = false
+        isPublishing = false
     }
 }
