@@ -1,20 +1,69 @@
 import SwiftUI
+import CoreLocation
+
+// MARK: - CoreLocation Manager
+class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    @Published var location: CLLocation?
+    @Published var cityNeighborhood: String?
+    @Published var isRequesting = false
+
+    override init() {
+        super.init()
+        manager.delegate = self
+    }
+
+    func requestLocation() {
+        isRequesting = true
+        manager.requestWhenInUseAuthorization()
+        manager.requestLocation()
+    }
+    
+    func requestLocationIfAuthorized() {
+        let status = manager.authorizationStatus
+        if status == .authorizedWhenInUse || status == .authorizedAlways {
+            requestLocation()
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let loc = locations.first else { return }
+        self.location = loc
+        
+        let geocoder = CLGeocoder()
+        geocoder.reverseGeocodeLocation(loc) { [weak self] placemarks, error in
+            DispatchQueue.main.async {
+                self?.isRequesting = false
+                if let place = placemarks?.first {
+                    let city = place.locality ?? "Unknown City"
+                    let state = place.administrativeArea ?? ""
+                    self?.cityNeighborhood = "\(city), \(state)"
+                }
+            }
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        DispatchQueue.main.async {
+            self.isRequesting = false
+        }
+        print("Location error: \(error)")
+    }
+}
 
 // MARK: - THEME ENGINE (Design System)
 struct Theme {
-    // 1. Original Brand Colors Reverted
     struct Colors {
         static let primary = Color.craigslistPurple
         static let success = Color.craigslistGreen
         static let surfaceCard = Color(.systemBackground)
         static let surfaceBackground = Color(.systemGroupedBackground)
         static let surfaceGray = Color(.systemGray5)
-        static let inputBackground = Color(.systemGray6) // Elevated background for better Dark Mode contrast
+        static let inputBackground = Color(.systemGray6)
         static let textSecondary = Color.secondary
         static let actionPrimary = Color.craigslistPurple
     }
     
-    // 2. Major Third Typographic Scale (Base 18pt, Ratio 1.250)
     struct Typography {
         static func display() -> Font { .custom("Montserrat", size: 44).weight(.bold) }
         static func headingXL() -> Font { .custom("Montserrat", size: 35).weight(.bold) }
@@ -26,7 +75,6 @@ struct Theme {
         static func helper(weight: Font.Weight = .regular) -> Font { .custom("NunitoSans", size: 11).weight(weight) }
     }
     
-    // 3. Strict 8pt Spacing Grid
     struct Spacing {
         static let screenMargin: CGFloat = 24
         static let gutter: CGFloat = 16
@@ -36,10 +84,9 @@ struct Theme {
         static let section: CGFloat = 40
     }
     
-    // 4. Component Radii
     struct Radius {
-        static let small: CGFloat = 12 // Buttons & Inputs
-        static let medium: CGFloat = 16 // Cards
+        static let small: CGFloat = 12
+        static let medium: CGFloat = 16
     }
 }
 
@@ -53,7 +100,7 @@ struct MSPInputStyle: ViewModifier {
             .font(Theme.Typography.body())
             .padding(.horizontal, Theme.Spacing.medium)
             .frame(minHeight: 56)
-            .background(Theme.Colors.inputBackground) // Applied new input color
+            .background(Theme.Colors.inputBackground)
             .cornerRadius(Theme.Radius.small)
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.small)
@@ -122,13 +169,11 @@ struct CraigslistPattern: View {
                 ForEach(0..<totalIcons, id: \.self) { index in
                     let rotation = Double((index * 37) % 360)
                     
-                    Image("CraigslistIcon")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 36, height: 36)
+                    Image(systemName: "bag.fill")
+                        .font(.system(size: 24))
                         .foregroundColor(colorScheme == .dark ? .white : .black)
-                        .opacity(colorScheme == .dark ? 0.04 : 0.02)
+                        // FIX: Opacity doubled to ensure the pattern is noticeably visible
+                        .opacity(colorScheme == .dark ? 0.08 : 0.05)
                         .rotationEffect(.degrees(rotation))
                         .frame(height: geo.size.width / 4)
                 }
@@ -157,11 +202,10 @@ struct GlassHeader: View {
         VStack(spacing: Theme.Spacing.medium) {
             HStack {
                 Image("CraigslistIcon")
-                    .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 24, height: 24)
-                    .foregroundColor(Theme.Colors.primary)
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 
                 Button(action: { showLocationSheet = true }) {
                     HStack(spacing: Theme.Spacing.small) {
@@ -492,11 +536,11 @@ struct FilterSelectionSheet: View {
 struct LocationSelectionSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var appState: AppState
+    @StateObject private var locationManager = LocationManager()
     @AppStorage("isNearbyMode") private var isNearbyMode = true
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     
     let cities = ["Minneapolis, MN", "St. Paul, MN", "Bloomington, MN", "Brooklyn Center, MN", "Edina, MN", "Plymouth, MN"]
-    let neighborhoods = ["North Loop", "Uptown", "Northeast", "Downtown", "Linden Hills", "Dinkytown"]
     let radii = [1, 5, 10, 25]
     
     var body: some View {
@@ -511,11 +555,28 @@ struct LocationSelectionSheet: View {
             }
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 32) {
-                    Button(action: {}) {
-                        HStack { Image(systemName: "location.fill"); Text("Use Current Location") }
+                    
+                    Button(action: { locationManager.requestLocation() }) {
+                        HStack {
+                            Image(systemName: "location.fill")
+                            if locationManager.isRequesting {
+                                Text("Locating...")
+                                Spacer()
+                                ProgressView()
+                            } else {
+                                Text("Use Current Location")
+                            }
+                        }
                         .font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
                         .padding().background(Theme.Colors.surfaceCard).cornerRadius(Theme.Radius.small)
-                    }.padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, 16)
+                    }
+                    .padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, 16)
+                    .onChange(of: locationManager.cityNeighborhood) { newValue in
+                        if let newLoc = newValue {
+                            appState.selectedLocation = newLoc
+                            dismiss()
+                        }
+                    }
                     
                     VStack(alignment: .leading, spacing: 12) {
                         Text("NEARBY MODE").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)

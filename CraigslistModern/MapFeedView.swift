@@ -16,7 +16,8 @@ struct MapFeedView: View {
     @State private var sheetHeight: CGFloat = UIScreen.main.bounds.height * 0.40
     @State private var lastSheetHeight: CGFloat = UIScreen.main.bounds.height * 0.40
     
-    // Capped at 65% of screen height so it never covers the Action Bar
+    @StateObject private var locationManager = LocationManager()
+    
     let minHeight: CGFloat = 100
     let midHeight: CGFloat = UIScreen.main.bounds.height * 0.40
     let maxHeight: CGFloat = UIScreen.main.bounds.height * 0.65
@@ -28,10 +29,41 @@ struct MapFeedView: View {
                     updateCameraPosition(for: newDistance)
                 }
                 .onAppear {
+                    locationManager.requestLocationIfAuthorized()
                     updateCameraPosition(for: nearbyDistance)
                     sheetHeight = midHeight
                     lastSheetHeight = midHeight
                 }
+            
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        locationManager.requestLocation()
+                    }) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(Theme.Colors.primary)
+                            .frame(width: 44, height: 44)
+                            .background(Color(.systemBackground))
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, sheetHeight + 16)
+                    .animation(.spring(), value: sheetHeight)
+                }
+            }
+            .onChange(of: locationManager.location) { _, loc in
+                if let coord = loc?.coordinate {
+                    withAnimation(.easeInOut(duration: 0.8)) {
+                        cameraPosition = .region(MKCoordinateRegion(center: coord, span: MKCoordinateSpan(latitudeDelta: nearbyDistance * 0.025, longitudeDelta: nearbyDistance * 0.025)))
+                    }
+                }
+            }
             
             sheetContent
         }
@@ -71,7 +103,7 @@ struct MapFeedView: View {
     }
     
     private func updateCameraPosition(for distance: Double) {
-        let center = CLLocationCoordinate2D(latitude: 44.9778, longitude: -93.2650)
+        let center = locationManager.location?.coordinate ?? CLLocationCoordinate2D(latitude: 44.9778, longitude: -93.2650)
         let span = MKCoordinateSpan(latitudeDelta: distance * 0.025, longitudeDelta: distance * 0.025)
         withAnimation(.easeInOut(duration: 0.5)) {
             cameraPosition = .region(MKCoordinateRegion(center: center, span: span))
@@ -80,7 +112,6 @@ struct MapFeedView: View {
 }
 
 // MARK: - Subcomponents
-
 struct MapPricePin: View {
     var price: Int
     var isSelected: Bool
@@ -119,7 +150,7 @@ struct MapBottomSheet: View {
             // Drag Header
             VStack(spacing: 0) {
                 Capsule().fill(Color.gray.opacity(0.4)).frame(width: 40, height: 5).padding(.top, 12)
-                Text("Over \(listings.count) results nearby")
+                Text("\(listings.count) results nearby")
                     .font(.custom("NunitoSans", size: 16).weight(.bold))
                     .foregroundColor(.primary)
                     .padding(.vertical, 16)
@@ -167,7 +198,8 @@ struct MapBottomSheet: View {
                                 .padding(.horizontal, 16)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 16) {
+                                // FIX: Updated to LazyHStack to prevent AsyncImage flickering on load
+                                LazyHStack(spacing: 16) {
                                     ForEach(trendingListings, id: \.id) { listing in
                                         MapFeedCard(listing: listing)
                                             .onTapGesture {
@@ -182,7 +214,7 @@ struct MapBottomSheet: View {
                     
                     if !recentListings.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Recently Listed")
+                            Text("More Nearby")
                                 .font(.custom("Montserrat", size: 22).weight(.bold))
                                 .padding(.horizontal, 16)
                             

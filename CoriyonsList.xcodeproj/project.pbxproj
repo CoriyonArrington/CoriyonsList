@@ -31,6 +31,7 @@
 		654553A22F6545650071D6D9 /* CoriyonsList.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoriyonsList.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		654553AF2F6545660071D6D9 /* CoriyonsListTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoriyonsListTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		654553B92F6545660071D6D9 /* CoriyonsListUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoriyonsListUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		65580BD82F77828600FF24D8 /* CoriyonsList-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "CoriyonsList-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -80,6 +81,7 @@
 		654553992F6545650071D6D9 = {
 			isa = PBXGroup;
 			children = (
+				65580BD82F77828600FF24D8 /* CoriyonsList-Info.plist */,
 				654553A42F6545650071D6D9 /* CraigslistModern */,
 				654553B22F6545660071D6D9 /* CraigslistModernTests */,
 				654553BC2F6545660071D6D9 /* CraigslistModernUITests */,
@@ -409,8 +411,10 @@
 				DEVELOPMENT_TEAM = 644Z739Q37;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "CoriyonsList-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CoriyonsList;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.shopping";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to show you listings and deals nearby.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -443,8 +447,10 @@
 				DEVELOPMENT_TEAM = 644Z739Q37;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "CoriyonsList-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CoriyonsList;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.shopping";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to show you listings and deals nearby.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
