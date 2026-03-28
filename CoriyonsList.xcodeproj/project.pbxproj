@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		655B929B2F7822B000AEB707 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 655B929A2F7822B000AEB707 /* Supabase */; };
 		6577D47C2F74DC9D001F8270 /* Clarity in Frameworks */ = {isa = PBXBuildFile; productRef = 6577D47B2F74DC9D001F8270 /* Clarity */; };
 /* End PBXBuildFile section */
 
@@ -57,6 +58,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				655B929B2F7822B000AEB707 /* Supabase in Frameworks */,
 				6577D47C2F74DC9D001F8270 /* Clarity in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -120,6 +122,7 @@
 			name = CoriyonsList;
 			packageProductDependencies = (
 				6577D47B2F74DC9D001F8270 /* Clarity */,
+				655B929A2F7822B000AEB707 /* Supabase */,
 			);
 			productName = CraigslistModern;
 			productReference = 654553A22F6545650071D6D9 /* CoriyonsList.app */;
@@ -205,6 +208,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				6577D47A2F74DC9D001F8270 /* XCRemoteSwiftPackageReference "clarity-apps" */,
+				655B92992F7822B000AEB707 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 654553A32F6545650071D6D9 /* Products */;
@@ -407,7 +411,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 644Z739Q37;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -443,7 +447,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 644Z739Q37;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -587,6 +591,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		655B92992F7822B000AEB707 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
 		6577D47A2F74DC9D001F8270 /* XCRemoteSwiftPackageReference "clarity-apps" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/microsoft/clarity-apps";
@@ -598,6 +610,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		655B929A2F7822B000AEB707 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 655B92992F7822B000AEB707 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
 		6577D47B2F74DC9D001F8270 /* Clarity */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 6577D47A2F74DC9D001F8270 /* XCRemoteSwiftPackageReference "clarity-apps" */;
