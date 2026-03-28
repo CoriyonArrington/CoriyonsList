@@ -3,11 +3,22 @@ import CoreLocation
 import SwiftUI
 import Supabase
 
-// Matches the parameters expected by the Supabase RPC function
 struct RadiusQuery: Codable {
     let user_lon: Double
     let user_lat: Double
     let radius_meters: Double
+}
+
+struct UserInteraction: Codable {
+    var userId: UUID
+    var listingId: UUID
+    var interactionType: String
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case listingId = "listing_id"
+        case interactionType = "interaction_type"
+    }
 }
 
 @MainActor
@@ -69,8 +80,8 @@ class AppState: ObservableObject {
                 self.currentUserID = session.user.id
                 self.isAuthenticated = true
             }
-            // Fetch the default seed listings once logged in
             await fetchListings(longitude: -93.2650, latitude: 44.9778, radiusInMiles: 50.0)
+            await fetchUserInteractions()
         } catch {
             await MainActor.run {
                 self.isAuthenticated = false
@@ -85,7 +96,10 @@ class AppState: ObservableObject {
             await MainActor.run {
                 self.isAuthenticated = false
                 self.currentUserID = nil
-                self.listings = [] // Clear memory
+                self.listings = []
+                self.favoriteIDs.removeAll()
+                self.votedIDs.removeAll()
+                self.hiddenIDs.removeAll()
             }
         } catch {
             print("Error signing out: \(error)")
@@ -98,12 +112,7 @@ class AppState: ObservableObject {
         errorMessage = nil
         
         let radiusInMeters = radiusInMiles * 1609.34
-        
-        let queryParams = RadiusQuery(
-            user_lon: longitude,
-            user_lat: latitude,
-            radius_meters: radiusInMeters
-        )
+        let queryParams = RadiusQuery(user_lon: longitude, user_lat: latitude, radius_meters: radiusInMeters)
         
         do {
             let fetchedListings: [LiveListing] = try await SupabaseManager.shared.client
@@ -112,7 +121,6 @@ class AppState: ObservableObject {
                 .value
             
             self.listings = fetchedListings
-            
         } catch {
             self.errorMessage = "Failed to load local listings. Please check your connection."
             print("Supabase RPC Query Error: \(error.localizedDescription)")
@@ -121,30 +129,130 @@ class AppState: ObservableObject {
         isLoading = false
     }
     
-    // MARK: - UI Helpers
+    func fetchUserInteractions() async {
+        guard let userId = currentUserID else { return }
+        
+        do {
+            let interactions: [UserInteraction] = try await SupabaseManager.shared.client
+                .from("user_interactions")
+                .select()
+                .execute()
+                .value
+            
+            await MainActor.run {
+                self.favoriteIDs = Set(interactions.filter { $0.interactionType == "favorite" }.map { $0.listingId })
+                self.votedIDs = Set(interactions.filter { $0.interactionType == "vote" }.map { $0.listingId })
+                self.hiddenIDs = Set(interactions.filter { $0.interactionType == "hide" }.map { $0.listingId })
+            }
+        } catch {
+            print("Failed to fetch interactions: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Listing Management
+    func deleteListing(_ id: UUID) {
+        guard let listingBackup = listings.first(where: { $0.id == id }) else { return }
+        let wasFavorited = favoriteIDs.contains(id)
+        let wasVoted = votedIDs.contains(id)
+        let wasHidden = hiddenIDs.contains(id)
+        
+        withAnimation {
+            self.listings.removeAll { $0.id == id }
+            self.favoriteIDs.remove(id)
+            self.votedIDs.remove(id)
+            self.hiddenIDs.remove(id)
+        }
+        
+        Task {
+            do {
+                try await SupabaseManager.shared.client
+                    .from("listings")
+                    .delete()
+                    .eq("id", value: id)
+                    .execute()
+                
+                await MainActor.run {
+                    triggerToast(message: "Listing Permanently Deleted")
+                }
+            } catch {
+                print("Supabase Delete Error: \(error)")
+                await MainActor.run {
+                    withAnimation {
+                        self.listings.insert(listingBackup, at: 0)
+                        if wasFavorited { self.favoriteIDs.insert(id) }
+                        if wasVoted { self.votedIDs.insert(id) }
+                        if wasHidden { self.hiddenIDs.insert(id) }
+                    }
+                    triggerToast(message: "Failed to delete from server.")
+                }
+            }
+        }
+    }
+    
+    // MARK: - Live UI Sync Helpers
     func toggleFavorite(_ id: UUID) {
-        if favoriteIDs.contains(id) {
-            favoriteIDs.remove(id)
-        } else {
+        let isAdding = !favoriteIDs.contains(id)
+        
+        if isAdding {
             favoriteIDs.insert(id)
             triggerToast(message: "Saved to Favorites")
+        } else {
+            favoriteIDs.remove(id)
+        }
+        
+        guard let userId = currentUserID else { return }
+        Task {
+            do {
+                if isAdding {
+                    let interaction = UserInteraction(userId: userId, listingId: id, interactionType: "favorite")
+                    try await SupabaseManager.shared.client.from("user_interactions").insert(interaction).execute()
+                } else {
+                    try await SupabaseManager.shared.client.from("user_interactions").delete()
+                        .eq("user_id", value: userId).eq("listing_id", value: id).eq("interaction_type", value: "favorite").execute()
+                }
+            } catch { print("Supabase Favorite Sync Error: \(error)") }
         }
     }
     
     func toggleHidden(_ id: UUID) {
-        if hiddenIDs.contains(id) {
-            hiddenIDs.remove(id)
-        } else {
-            hiddenIDs.insert(id)
+        let isAdding = !hiddenIDs.contains(id)
+        if isAdding { hiddenIDs.insert(id) } else { hiddenIDs.remove(id) }
+        
+        guard let userId = currentUserID else { return }
+        Task {
+            do {
+                if isAdding {
+                    let interaction = UserInteraction(userId: userId, listingId: id, interactionType: "hide")
+                    try await SupabaseManager.shared.client.from("user_interactions").insert(interaction).execute()
+                } else {
+                    try await SupabaseManager.shared.client.from("user_interactions").delete()
+                        .eq("user_id", value: userId).eq("listing_id", value: id).eq("interaction_type", value: "hide").execute()
+                }
+            } catch { print("Supabase Hide Sync Error: \(error)") }
         }
     }
     
     func toggleVoted(_ id: UUID) {
-        if votedIDs.contains(id) {
-            votedIDs.remove(id)
-        } else {
+        let isAdding = !votedIDs.contains(id)
+        
+        if isAdding {
             votedIDs.insert(id)
             triggerToast(message: "Upvoted Listing")
+        } else {
+            votedIDs.remove(id)
+        }
+        
+        guard let userId = currentUserID else { return }
+        Task {
+            do {
+                if isAdding {
+                    let interaction = UserInteraction(userId: userId, listingId: id, interactionType: "vote")
+                    try await SupabaseManager.shared.client.from("user_interactions").insert(interaction).execute()
+                } else {
+                    try await SupabaseManager.shared.client.from("user_interactions").delete()
+                        .eq("user_id", value: userId).eq("listing_id", value: id).eq("interaction_type", value: "vote").execute()
+                }
+            } catch { print("Supabase Vote Sync Error: \(error)") }
         }
     }
     
@@ -158,6 +266,7 @@ class AppState: ObservableObject {
         }
     }
     
+    // MARK: - Search Logic
     func getSuggestions(for query: String) -> [String] {
         guard !query.isEmpty else { return [] }
         let lowerQuery = query.lowercased()
