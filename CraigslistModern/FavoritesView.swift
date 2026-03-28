@@ -8,6 +8,7 @@ struct FavoritesView: View {
     @State private var searchText = ""
     
     @State private var listingToEdit: LiveListing?
+    @State private var listingToDelete: LiveListing? // Holds context for the alert
     
     let options = ["Favorites", "My Listings", "Voted", "Hidden"]
     
@@ -15,9 +16,8 @@ struct FavoritesView: View {
     
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
     
-    // Filters by the authenticated Supabase user ID
     var myListings: [LiveListing] {
-        guard let currentUserID = SupabaseManager.shared.client.auth.currentUser?.id else { return [] }
+        guard let currentUserID = appState.currentUserID else { return [] }
         return appState.listings.filter { $0.sellerId == currentUserID }
     }
     
@@ -79,8 +79,24 @@ struct FavoritesView: View {
             .sheet(item: $listingToEdit) { listing in
                 EditListingView(listing: listing)
             }
+            // Confirmation Alert for Grid Context Menus
+            .alert("Delete Listing", isPresented: Binding(
+                get: { listingToDelete != nil },
+                set: { if !$0 { listingToDelete = nil } }
+            ), presenting: listingToDelete) { listing in
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.notificationOccurred(.success)
+                    appState.deleteListing(listing.id)
+                }
+            } message: { listing in
+                Text("Are you sure you want to permanently delete '\(listing.title)'? This action cannot be undone.")
+            }
         }
     }
+    
+    // MARK: - View Builders
     
     @ViewBuilder
     private func renderMyListings() -> some View {
@@ -108,7 +124,7 @@ struct FavoritesView: View {
                         }
                         .contextMenu {
                             Button { listingToEdit = first } label: { Label("Edit Post", systemImage: "pencil") }
-                            Button(role: .destructive) { deleteListing(first) } label: { Label("Delete Post", systemImage: "trash") }
+                            Button(role: .destructive) { listingToDelete = first } label: { Label("Delete Post", systemImage: "trash") }
                         }
                         .padding(.horizontal, Theme.Spacing.screenMargin)
                 }
@@ -123,7 +139,7 @@ struct FavoritesView: View {
                             }
                             .contextMenu {
                                 Button { listingToEdit = listing } label: { Label("Edit Post", systemImage: "pencil") }
-                                Button(role: .destructive) { deleteListing(listing) } label: { Label("Delete Post", systemImage: "trash") }
+                                Button(role: .destructive) { listingToDelete = listing } label: { Label("Delete Post", systemImage: "trash") }
                             }
                     }
                 }
@@ -168,13 +184,7 @@ struct FavoritesView: View {
         }
     }
     
-    private func deleteListing(_ listing: LiveListing) {
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
-        withAnimation { appState.listings.removeAll { $0.id == listing.id } }
-        appState.triggerToast(message: "Listing Deleted")
-    }
-    
+    // MARK: - Logic Helpers
     private func getTargetIDs() -> Set<UUID> {
         if statusSelection == "Favorites" { return appState.favoriteIDs }
         if statusSelection == "Voted" { return appState.votedIDs }

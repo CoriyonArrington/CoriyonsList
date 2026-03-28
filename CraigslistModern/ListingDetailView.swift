@@ -71,6 +71,7 @@ struct ListingDetailView: View {
     @State private var showAllActions = false
     @State private var showChatRoom = false
     @State private var showEditSheet = false
+    @State private var showDeleteAlert = false // Added state for the dialog
     
     private var currentIndex: Int? { allIDs.firstIndex(of: listing.id) }
     private var displayIndex: Int { (currentIndex ?? 0) + 1 }
@@ -93,11 +94,7 @@ struct ListingDetailView: View {
         generator.impactOccurred()
         action()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            if hasNext {
-                goNext()
-            } else {
-                onDismiss()
-            }
+            if hasNext { goNext() } else { onDismiss() }
         }
     }
     
@@ -335,11 +332,7 @@ struct ListingDetailView: View {
                         }
                         
                         Button(action: {
-                            let generator = UINotificationFeedbackGenerator()
-                            generator.notificationOccurred(.success)
-                            withAnimation { appState.listings.removeAll { $0.id == listing.id } }
-                            appState.triggerToast(message: "Listing Deleted")
-                            onDismiss()
+                            showDeleteAlert = true
                         }) {
                             Text("Delete")
                                 .font(.custom("Montserrat", size: 17).weight(.bold))
@@ -348,6 +341,18 @@ struct ListingDetailView: View {
                                 .frame(height: 56)
                                 .background(Color.red)
                                 .cornerRadius(16)
+                        }
+                        // Confirmation Alert for Details View
+                        .alert("Delete Listing", isPresented: $showDeleteAlert) {
+                            Button("Cancel", role: .cancel) { }
+                            Button("Delete", role: .destructive) {
+                                let generator = UINotificationFeedbackGenerator()
+                                generator.notificationOccurred(.success)
+                                appState.deleteListing(listing.id)
+                                onDismiss()
+                            }
+                        } message: {
+                            Text("Are you sure you want to permanently delete '\(listing.title)'? This action cannot be undone.")
                         }
                     }
                 } else {
