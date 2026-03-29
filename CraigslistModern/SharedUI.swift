@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import MapKit
 
 // MARK: - CoreLocation Manager
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
@@ -50,6 +51,36 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 }
 
+// MARK: - Location Search Service for Auto-Complete
+class LocationSearchService: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
+    @Published var searchQuery = "" {
+        didSet {
+            if searchQuery.isEmpty {
+                completions = []
+            } else {
+                completer.queryFragment = searchQuery
+            }
+        }
+    }
+    @Published var completions: [MKLocalSearchCompletion] = []
+    private let completer = MKLocalSearchCompleter()
+
+    override init() {
+        super.init()
+        completer.delegate = self
+        completer.resultTypes = [.address]
+    }
+
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        DispatchQueue.main.async {
+            self.completions = completer.results
+        }
+    }
+
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+    }
+}
+
 // MARK: - THEME ENGINE (Design System)
 struct Theme {
     struct Colors {
@@ -68,7 +99,7 @@ struct Theme {
         static func headingXL() -> Font { .custom("Montserrat", size: 35).weight(.bold) }
         static func headingL() -> Font { .custom("Montserrat", size: 28).weight(.bold) }
         static func headingM() -> Font { .custom("Montserrat", size: 23).weight(.bold) }
-        static func headingS() -> Font { .custom("Montserrat", size: 18).weight(.bold) } // Added for user card
+        static func headingS() -> Font { .custom("Montserrat", size: 18).weight(.bold) }
         
         static func body(weight: Font.Weight = .regular) -> Font { .custom("NunitoSans", size: 18).weight(weight) }
         static func caption(weight: Font.Weight = .regular) -> Font { .custom("NunitoSans", size: 14).weight(weight) }
@@ -197,6 +228,9 @@ struct GlassHeader: View {
     @State private var showLocationSheet = false
     @State private var showAccountSheet = false
     
+    @StateObject private var locationManager = LocationManager()
+    @AppStorage("hasSetInitialLocation") private var hasSetInitialLocation = false
+    
     var body: some View {
         VStack(spacing: Theme.Spacing.medium) {
             HStack {
@@ -207,7 +241,6 @@ struct GlassHeader: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 
                 Button(action: { showLocationSheet = true }) {
-                    // FIXED: Removed the location.fill image
                     HStack(spacing: Theme.Spacing.small) {
                         Text(appState.selectedLocation)
                             .font(Theme.Typography.body(weight: .bold))
@@ -296,6 +329,24 @@ struct GlassHeader: View {
         .overlay(Divider().opacity(0.3), alignment: .bottom)
         .onAppear {
             if autoFocus { DispatchQueue.main.async { isFocused = true } }
+            
+            if !hasSetInitialLocation {
+                locationManager.requestLocation()
+            }
+        }
+        .onChange(of: locationManager.cityNeighborhood) { _, newValue in
+            if !hasSetInitialLocation, let city = newValue, let coord = locationManager.location?.coordinate {
+                hasSetInitialLocation = true
+                
+                // FIXED: Save coordinates directly into AppState persistent storage
+                appState.selectedLocation = city
+                appState.savedLatitude = coord.latitude
+                appState.savedLongitude = coord.longitude
+                
+                Task {
+                    await appState.fetchListings(longitude: coord.longitude, latitude: coord.latitude, radiusInMiles: 50.0)
+                }
+            }
         }
     }
 }
@@ -550,11 +601,14 @@ struct FilterSelectionSheet: View {
 struct LocationSelectionSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var appState: AppState
+    
     @StateObject private var locationManager = LocationManager()
+    @StateObject private var searchService = LocationSearchService()
+    
     @AppStorage("isNearbyMode") private var isNearbyMode = true
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     
-    let cities = ["Minneapolis, MN", "St. Paul, MN", "Bloomington, MN", "Brooklyn Center, MN", "Edina, MN", "Plymouth, MN"]
+    @State private var isGeocoding: Bool = false
     let radii = [1, 5, 10, 25]
     
     var body: some View {
@@ -570,73 +624,142 @@ struct LocationSelectionSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 32) {
                     
-                    Button(action: { locationManager.requestLocation() }) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("MANUAL LOCATION").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
                         HStack {
-                            Image(systemName: "location.fill")
-                            if locationManager.isRequesting {
-                                Text("Locating...")
-                                Spacer()
-                                ProgressView()
-                            } else {
-                                Text("Use Current Location")
-                            }
-                        }
-                        .font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
-                        .padding().background(Theme.Colors.surfaceCard).cornerRadius(Theme.Radius.small)
-                    }
-                    .padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, 16)
-                    .onChange(of: locationManager.cityNeighborhood) { newValue in
-                        if let newLoc = newValue {
-                            appState.selectedLocation = newLoc
-                            dismiss()
-                        }
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("NEARBY MODE").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                        Toggle(isOn: $isNearbyMode) { Text("Prioritize nearby items & deals").font(Theme.Typography.body()) }
-                            .tint(Theme.Colors.primary)
-                        
-                        if isNearbyMode {
-                            Divider().padding(.vertical, 4)
-                            Stepper(value: $nearbyDistance, in: 1...50, step: 1) {
-                                Text("Distance: \(Int(nearbyDistance)) miles")
-                                    .font(Theme.Typography.body(weight: .semibold))
-                            }
-                        }
-                    }.padding(.horizontal, Theme.Spacing.screenMargin)
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("SEARCH RADIUS").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                        HStack(spacing: 8) {
-                            ForEach(radii, id: \.self) { radius in
-                                Button(action: { nearbyDistance = Double(radius) }) {
-                                    Text("\(radius) miles")
-                                        .font(Theme.Typography.caption(weight: .semibold))
-                                        .frame(maxWidth: .infinity).padding(.vertical, 10)
-                                        .background(Int(nearbyDistance) == radius ? Theme.Colors.primary : Theme.Colors.surfaceCard)
-                                        .foregroundColor(Int(nearbyDistance) == radius ? Color(.systemBackground) : .primary)
-                                        .cornerRadius(20)
+                            Image(systemName: "magnifyingglass").foregroundColor(Theme.Colors.textSecondary)
+                            TextField("Enter city, state, or zip...", text: $searchService.searchQuery)
+                                .font(Theme.Typography.body())
+                                .disableAutocorrection(true)
+                            
+                            if isGeocoding {
+                                ProgressView().scaleEffect(0.8)
+                            } else if !searchService.searchQuery.isEmpty {
+                                Button(action: { searchService.searchQuery = "" }) {
+                                    Image(systemName: "xmark.circle.fill").foregroundColor(Theme.Colors.textSecondary)
                                 }
                             }
                         }
-                    }.padding(.horizontal, Theme.Spacing.screenMargin)
-                    
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("CITIES").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary).padding(.horizontal, Theme.Spacing.screenMargin).padding(.bottom, 8)
-                        ForEach(cities, id: \.self) { loc in
-                            Button(action: { appState.selectedLocation = loc; dismiss() }) {
-                                HStack { Image(systemName: "building.2.fill").foregroundColor(Theme.Colors.textSecondary); Text(loc).font(Theme.Typography.body()).foregroundColor(.primary); Spacer(); if appState.selectedLocation == loc { Image(systemName: "checkmark").foregroundColor(Theme.Colors.primary) } }
-                                .padding(.vertical, 14).padding(.horizontal, Theme.Spacing.screenMargin)
+                        .padding()
+                        .background(Theme.Colors.surfaceGray)
+                        .cornerRadius(Theme.Radius.small)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.Radius.small)
+                                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                        )
+                    }
+                    .padding(.horizontal, Theme.Spacing.screenMargin)
+
+                    if !searchService.completions.isEmpty {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("SUGGESTIONS").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary).padding(.horizontal, Theme.Spacing.screenMargin).padding(.bottom, 8)
+                            
+                            ForEach(searchService.completions, id: \.self) { completion in
+                                Button(action: { selectCompletion(completion) }) {
+                                    HStack {
+                                        Image(systemName: "mappin.and.ellipse").foregroundColor(Theme.Colors.textSecondary)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(completion.title).font(Theme.Typography.body()).foregroundColor(.primary)
+                                            if !completion.subtitle.isEmpty {
+                                                Text(completion.subtitle).font(Theme.Typography.caption()).foregroundColor(Theme.Colors.textSecondary)
+                                            }
+                                        }
+                                        Spacer()
+                                    }
+                                    .padding(.vertical, 14).padding(.horizontal, Theme.Spacing.screenMargin)
+                                }
+                                Divider().padding(.leading, 48)
                             }
-                            if loc != cities.last { Divider().padding(.leading, 48) }
                         }
+                    } else {
+                        Button(action: { locationManager.requestLocation() }) {
+                            HStack {
+                                Image(systemName: "location.fill")
+                                if locationManager.isRequesting {
+                                    Text("Locating...")
+                                    Spacer()
+                                    ProgressView()
+                                } else {
+                                    Text("Use Current Location")
+                                }
+                            }
+                            .font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
+                            .padding().background(Theme.Colors.surfaceGray).cornerRadius(Theme.Radius.small)
+                        }
+                        .padding(.horizontal, Theme.Spacing.screenMargin)
+                        .onChange(of: locationManager.cityNeighborhood) { _, newValue in
+                            if let city = newValue, let coord = locationManager.location?.coordinate {
+                                updateLocationAndFetch(city: city, coordinate: coord)
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("NEARBY MODE").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                            Toggle(isOn: $isNearbyMode) { Text("Prioritize nearby items & deals").font(Theme.Typography.body()) }
+                                .tint(Theme.Colors.primary)
+                            
+                            if isNearbyMode {
+                                Divider().padding(.vertical, 4)
+                                Stepper(value: $nearbyDistance, in: 1...50, step: 1) {
+                                    Text("Distance: \(Int(nearbyDistance)) miles")
+                                        .font(Theme.Typography.body(weight: .semibold))
+                                }
+                            }
+                        }.padding(.horizontal, Theme.Spacing.screenMargin)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("SEARCH RADIUS").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                            HStack(spacing: 8) {
+                                ForEach(radii, id: \.self) { radius in
+                                    Button(action: { nearbyDistance = Double(radius) }) {
+                                        Text("\(radius) miles")
+                                            .font(Theme.Typography.caption(weight: .semibold))
+                                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                            .background(Int(nearbyDistance) == radius ? Theme.Colors.primary : Theme.Colors.surfaceGray)
+                                            .foregroundColor(Int(nearbyDistance) == radius ? Color(.systemBackground) : .primary)
+                                            .cornerRadius(20)
+                                    }
+                                }
+                            }
+                        }.padding(.horizontal, Theme.Spacing.screenMargin)
                     }
                 }
                 .padding(.bottom, 40)
             }
         }
         .background(Color(.systemBackground))
+    }
+    
+    private func selectCompletion(_ completion: MKLocalSearchCompletion) {
+        isGeocoding = true
+        let searchRequest = MKLocalSearch.Request(completion: completion)
+        let search = MKLocalSearch(request: searchRequest)
+        
+        search.start { response, error in
+            DispatchQueue.main.async {
+                isGeocoding = false
+                if let coordinate = response?.mapItems.first?.placemark.coordinate {
+                    let subtitleSuffix = completion.subtitle.isEmpty ? "" : ", \(completion.subtitle.components(separatedBy: ",").first ?? "")"
+                    let cityLabel = completion.title + subtitleSuffix
+                    
+                    updateLocationAndFetch(city: cityLabel, coordinate: coordinate)
+                } else {
+                    appState.triggerToast(message: "Location not found.")
+                }
+            }
+        }
+    }
+
+    private func updateLocationAndFetch(city: String, coordinate: CLLocationCoordinate2D) {
+        // FIXED: Explicitly sync to AppState persistent variables
+        appState.selectedLocation = city
+        appState.savedLatitude = coordinate.latitude
+        appState.savedLongitude = coordinate.longitude
+        
+        Task {
+            await appState.fetchListings(longitude: coordinate.longitude, latitude: coordinate.latitude, radiusInMiles: nearbyDistance)
+        }
+        dismiss()
     }
 }
 
