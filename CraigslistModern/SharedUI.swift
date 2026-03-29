@@ -163,6 +163,42 @@ extension View {
     }
 }
 
+// MARK: - Empty State Component
+struct EmptyStateView: View {
+    var icon: String
+    var title: String
+    var description: String
+    var buttonTitle: String? = nil
+    var buttonAction: (() -> Void)? = nil
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            ZStack {
+                Circle().fill(Theme.Colors.primary.opacity(0.15)).frame(width: 96, height: 96)
+                Image(systemName: icon).font(.system(size: 48)).foregroundColor(Theme.Colors.primary)
+            }
+            VStack(spacing: 8) {
+                Text(title).font(Theme.Typography.headingM())
+                Text(description)
+                    .font(Theme.Typography.body())
+                    .foregroundColor(Theme.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+            
+            if let buttonTitle = buttonTitle, let buttonAction = buttonAction {
+                Button(action: buttonAction) {
+                    Text(buttonTitle)
+                }
+                .buttonStyle(MSPPrimaryButtonStyle())
+                .padding(.horizontal, Theme.Spacing.screenMargin)
+                .padding(.top, 8)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
 // MARK: - Global Enums
 enum SortOption: String, CaseIterable {
     case bestMatch = "Best Match"
@@ -338,7 +374,6 @@ struct GlassHeader: View {
             if !hasSetInitialLocation, let city = newValue, let coord = locationManager.location?.coordinate {
                 hasSetInitialLocation = true
                 
-                // FIXED: Save coordinates directly into AppState persistent storage
                 appState.selectedLocation = city
                 appState.savedLatitude = coord.latitude
                 appState.savedLongitude = coord.longitude
@@ -751,7 +786,6 @@ struct LocationSelectionSheet: View {
     }
 
     private func updateLocationAndFetch(city: String, coordinate: CLLocationCoordinate2D) {
-        // FIXED: Explicitly sync to AppState persistent variables
         appState.selectedLocation = city
         appState.savedLatitude = coordinate.latitude
         appState.savedLongitude = coordinate.longitude
