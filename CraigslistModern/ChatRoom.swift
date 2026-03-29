@@ -30,7 +30,17 @@ struct ChatRoom: View {
     
     @State private var showListingSheet = false
     
+    // Trust & Safety State
+    @State private var showReportDialog = false
+    @State private var showBlockAlert = false
+    
     let quickReplies = ["Is this still available?", "I'm interested!", "Can we meet today?", "Are you open to offers?"]
+    
+    // Helper to identify the other user in the thread securely
+    private var targetUserId: UUID? {
+        guard let uid = appState.currentUserID else { return nil }
+        return (uid == listing.sellerId) ? thread?.buyerId : listing.sellerId
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -51,7 +61,7 @@ struct ChatRoom: View {
                     }
                     Spacer()
                 }
-                .padding(.horizontal, 24) // Theme.Spacing.screenMargin
+                .padding(.horizontal, 24)
                 .padding(.vertical, 12)
             }
             .background(Color(.systemBackground))
@@ -110,7 +120,7 @@ struct ChatRoom: View {
                     .font(Theme.Typography.body())
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Color(.systemGray6)) // Theme.Colors.inputBackground
+                    .background(Color(.systemGray6))
                     .cornerRadius(20)
                 
                 Button(action: send) {
@@ -131,9 +141,8 @@ struct ChatRoom: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar) // Hides bottom tabs for full-screen focus
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
-            // Centers the Seller's Profile in the Nav Bar
             ToolbarItem(placement: .principal) {
                 if let user = otherUser {
                     HStack(spacing: 8) {
@@ -153,22 +162,34 @@ struct ChatRoom: View {
                 }
             }
             
-            // Adds the clever "View Listing" button
             ToolbarItem(placement: .topBarTrailing) {
-                Button("View Listing") {
-                    if isModal {
-                        // If opened from a Listing, just slide the chat away
-                        dismiss()
-                    } else {
-                        // If opened from Inbox, bring up the Listing sheet
-                        showListingSheet = true
+                HStack(spacing: 16) {
+                    Button("View Listing") {
+                        if isModal {
+                            dismiss()
+                        } else {
+                            showListingSheet = true
+                        }
+                    }
+                    .font(Theme.Typography.caption(weight: .bold))
+                    .foregroundColor(Color.craigslistPurple)
+                    
+                    // Trust & Safety Dropdown
+                    Menu {
+                        Button(role: .destructive, action: { showBlockAlert = true }) {
+                            Label("Block User", systemImage: "nosign")
+                        }
+                        Button(role: .destructive, action: { showReportDialog = true }) {
+                            Label("Report User", systemImage: "flag")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(Color(.systemGray3))
                     }
                 }
-                .font(Theme.Typography.caption(weight: .bold))
-                .foregroundColor(Color.craigslistPurple)
             }
             
-            // Replaces back button with a close icon if it's a modal sheet
             ToolbarItem(placement: .topBarLeading) {
                 if isModal {
                     Button(action: { dismiss() }) {
@@ -180,7 +201,6 @@ struct ChatRoom: View {
             }
         }
         .sheet(isPresented: $showListingSheet) {
-            // Wrapper to display just this listing cleanly
             ListingPagerView(
                 listings: $appState.listings,
                 filteredIDs: [listing.id],
@@ -188,17 +208,15 @@ struct ChatRoom: View {
             )
         }
         .task {
-            // Figure out who the other participant is
+            // Identify participant and establish thread
             if let uid = appState.currentUserID {
-                let targetId = (uid == listing.sellerId) ? thread?.buyerId : listing.sellerId
-                if let targetId = targetId {
+                if let tId = targetUserId {
                     do {
                         self.otherUser = try await SupabaseManager.shared.client.from("profiles")
-                            .select().eq("id", value: targetId).single().execute().value
+                            .select().eq("id", value: tId).single().execute().value
                     } catch { }
                 }
                 
-                // Establish Thread
                 if let t = thread {
                     self.activeThreadId = t.id
                 } else {
@@ -216,6 +234,36 @@ struct ChatRoom: View {
         }
         .onDisappear {
             chatStore.leaveRoom()
+        }
+        // Trust & Safety Overlays
+        .confirmationDialog("Report User", isPresented: $showReportDialog, titleVisibility: .visible) {
+            Button("Spam or Scam") { submitReport(reason: "Spam or Scam") }
+            Button("Offensive Behavior") { submitReport(reason: "Offensive Behavior") }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Why are you reporting this user?")
+        }
+        .alert("Block User", isPresented: $showBlockAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Block", role: .destructive) {
+                if let targetId = targetUserId {
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.notificationOccurred(.success)
+                    appState.blockUser(targetId)
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("You will no longer receive messages or see listings from this user. This action cannot be undone.")
+        }
+    }
+    
+    private func submitReport(reason: String) {
+        if let targetId = targetUserId {
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+            appState.reportItem(targetId: targetId, type: "user", reason: reason)
+            dismiss()
         }
     }
     
@@ -244,7 +292,7 @@ struct MessageBubble: View {
                 .background(isCurrentUser ? Color.craigslistPurple : Color(.systemBackground))
                 .foregroundColor(isCurrentUser ? .white : .primary)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(isCurrentUser ? Color.clear : Color.primary.opacity(0.1), lineWidth: 1)) // Dark mode fix
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(isCurrentUser ? Color.clear : Color.primary.opacity(0.1), lineWidth: 1))
                 .shadow(color: Color.black.opacity(0.04), radius: 2, y: 1)
             
             if !isCurrentUser { Spacer() }

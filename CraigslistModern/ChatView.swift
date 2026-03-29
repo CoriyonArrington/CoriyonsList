@@ -10,11 +10,20 @@ struct ChatView: View {
     
     let options = ["Buying", "Selling"]
     
-    // Live computed property for search and tabs
+    // Live computed property for search, tabs, AND Trust & Safety filtering
     var filteredInbox: [InboxThread] {
         guard let uid = appState.currentUserID else { return [] }
         let filtered = chatStore.inbox.filter { item in
-            statusSelection == "Buying" ? item.thread.buyerId == uid : item.thread.sellerId == uid
+            // 1. Determine the other user's ID
+            let otherUserId = (item.thread.buyerId == uid) ? item.thread.sellerId : item.thread.buyerId
+            
+            // 2. Filter by selected tab (Buying vs Selling)
+            let isRelevantRole = statusSelection == "Buying" ? item.thread.buyerId == uid : item.thread.sellerId == uid
+            
+            // 3. Trust & Safety: Drop any threads from blocked users
+            let isNotBlocked = !appState.blockedUserIDs.contains(otherUserId)
+            
+            return isRelevantRole && isNotBlocked
         }
         if searchText.isEmpty { return filtered }
         return filtered.filter { $0.listing.title.localizedCaseInsensitiveContains(searchText) }
@@ -28,7 +37,7 @@ struct ChatView: View {
                 
                 VStack(alignment: .leading, spacing: 0) {
                     
-                    // MARK: - Custom Scrollable Segmented Bar (Matches FavoritesView)
+                    // MARK: - Custom Scrollable Segmented Bar
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Theme.Spacing.small) {
                             ForEach(options, id: \.self) { option in
@@ -101,7 +110,6 @@ struct ChatView: View {
                     }
                 }
                 .safeAreaInset(edge: .top) {
-                    // Injects the global Header View with the Search Bar
                     GlassHeader(searchText: $searchText, placeholder: "Search messages")
                 }
             }
