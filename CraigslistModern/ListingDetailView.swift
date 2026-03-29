@@ -71,7 +71,7 @@ struct ListingDetailView: View {
     @State private var showAllActions = false
     @State private var showChatRoom = false
     @State private var showEditSheet = false
-    @State private var showDeleteAlert = false // Added state for the dialog
+    @State private var showDeleteAlert = false
     
     private var currentIndex: Int? { allIDs.firstIndex(of: listing.id) }
     private var displayIndex: Int { (currentIndex ?? 0) + 1 }
@@ -154,6 +154,7 @@ struct ListingDetailView: View {
                         .frame(height: 400)
                         .tabViewStyle(.page)
                         
+                        // FIX: Added proper Top Padding to clear safe areas on full-screen cover
                         HStack(alignment: .top) {
                             CircularActionButton(icon: "xmark", action: onDismiss)
                             Spacer()
@@ -184,7 +185,7 @@ struct ListingDetailView: View {
                             }
                         }
                         .padding(.horizontal, 20)
-                        .padding(.top, 24)
+                        .padding(.top, 56) // Pulled down from the notch
                     }
                     
                     VStack(alignment: .leading, spacing: 6) {
@@ -331,9 +332,7 @@ struct ListingDetailView: View {
                                 .cornerRadius(16)
                         }
                         
-                        Button(action: {
-                            showDeleteAlert = true
-                        }) {
+                        Button(action: { showDeleteAlert = true }) {
                             Text("Delete")
                                 .font(.custom("Montserrat", size: 17).weight(.bold))
                                 .foregroundColor(Color(.systemBackground))
@@ -342,7 +341,6 @@ struct ListingDetailView: View {
                                 .background(Color.red)
                                 .cornerRadius(16)
                         }
-                        // Confirmation Alert for Details View
                         .alert("Delete Listing", isPresented: $showDeleteAlert) {
                             Button("Cancel", role: .cancel) { }
                             Button("Delete", role: .destructive) {
@@ -380,12 +378,10 @@ struct ListingDetailView: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 32)
+            // FIX: Solid color background to replace pattern
             .background(
-                ZStack {
-                    Color(.systemBackground)
-                    CraigslistPattern()
-                }
-                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5)
+                Color(.systemBackground)
+                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5)
             )
         }
         .background(Color(.systemBackground))

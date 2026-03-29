@@ -43,7 +43,8 @@ class AppState: ObservableObject {
     }
     
     @Published var selectedLocation: String = "Minneapolis, MN"
-    @Published var selectedTopCategory: String? = "For Sale"
+    // FIX: Default to nil so "All Categories" is shown on launch
+    @Published var selectedTopCategory: String? = nil
     @Published var selectedSubCategory: String? = nil
     
     @Published var showToast: Bool = false
@@ -287,7 +288,8 @@ class AppState: ObservableObject {
     func autoSelectCategory(for query: String) {
         let q = query.lowercased()
         if q.isEmpty {
-            selectedTopCategory = "For Sale"
+            // FIX: Clearing the search query now resets the feed to All Categories
+            selectedTopCategory = nil
             selectedSubCategory = nil
             return
         }
