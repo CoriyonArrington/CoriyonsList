@@ -1,6 +1,25 @@
 import SwiftUI
 import Supabase
 
+// Lightweight model to pull the seller's identity and trust metrics
+struct SellerProfile: Codable, Equatable {
+    let id: UUID
+    let fullName: String?
+    let avatarUrl: String?
+    let rating: Double?
+    let reviewCount: Int?
+    let sellerType: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case fullName = "full_name"
+        case avatarUrl = "avatar_url"
+        case rating
+        case reviewCount = "review_count"
+        case sellerType = "seller_type"
+    }
+}
+
 // MARK: - Pager Wrapper
 struct ListingPagerView: View {
     @EnvironmentObject var appState: AppState
@@ -72,6 +91,9 @@ struct ListingDetailView: View {
     @State private var showChatRoom = false
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
+    
+    // State to hold the fetched seller identity
+    @State private var sellerProfile: SellerProfile?
     
     private var currentIndex: Int? { allIDs.firstIndex(of: listing.id) }
     private var displayIndex: Int { (currentIndex ?? 0) + 1 }
@@ -154,7 +176,6 @@ struct ListingDetailView: View {
                         .frame(height: 400)
                         .tabViewStyle(.page)
                         
-                        // FIX: Added proper Top Padding to clear safe areas on full-screen cover
                         HStack(alignment: .top) {
                             CircularActionButton(icon: "xmark", action: onDismiss)
                             Spacer()
@@ -185,7 +206,7 @@ struct ListingDetailView: View {
                             }
                         }
                         .padding(.horizontal, 20)
-                        .padding(.top, 56) // Pulled down from the notch
+                        .padding(.top, 56)
                     }
                     
                     VStack(alignment: .leading, spacing: 6) {
@@ -239,6 +260,44 @@ struct ListingDetailView: View {
                     
                     Divider().padding(.horizontal, 20)
                     
+                    // MARK: - Seller Profile Info Card (Moved above the buttons)
+                    if let seller = sellerProfile {
+                        HStack(spacing: 16) {
+                            AsyncImage(url: URL(string: seller.avatarUrl ?? "")) { phase in
+                                if let img = phase.image { img.resizable().scaledToFill() }
+                                else { Color(.systemGray4).overlay(Image(systemName: "person.fill").foregroundColor(.gray)) }
+                            }
+                            .frame(width: 56, height: 56)
+                            .clipShape(Circle())
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Listed by")
+                                    .font(.custom("NunitoSans", size: 13).weight(.bold))
+                                    .foregroundColor(.secondary)
+                                
+                                Text(seller.fullName ?? "User")
+                                    .font(.custom("Montserrat", size: 17).weight(.bold))
+                                    .foregroundColor(.primary)
+                                
+                                if let rating = seller.rating, rating > 0 {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "star.fill").foregroundColor(.yellow).font(.system(size: 12))
+                                        Text(String(format: "%.1f", rating)).font(.custom("NunitoSans", size: 14).weight(.bold))
+                                        if let count = seller.reviewCount, count > 0 {
+                                            Text("(\(count))").font(.custom("NunitoSans", size: 14)).foregroundColor(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer() // Removes the chevron and pushes content left
+                        }
+                        .padding(16)
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .cornerRadius(16)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 24)
+                    }
+                    
                     VStack(spacing: 12) {
                         GhostActionButton(
                             icon: appState.votedIDs.contains(listing.id) ? "hand.thumbsup.fill" : "hand.thumbsup",
@@ -267,13 +326,15 @@ struct ListingDetailView: View {
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity).frame(height: 56)
                             .background(Color.primary.opacity(0.1))
+                            .cornerRadius(16)
                             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary, lineWidth: 1.5))
                         }
                         
                         if showAllActions {
+                            let isHidden = appState.hiddenIDs.contains(listing.id)
                             GhostActionButton(
-                                icon: "eye.slash",
-                                title: "Hide",
+                                icon: isHidden ? "eye" : "eye.slash",
+                                title: isHidden ? "Unhide" : "Hide",
                                 action: { handleAction { onDelete() } },
                                 themeColor: .primary
                             )
@@ -299,7 +360,7 @@ struct ListingDetailView: View {
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 24)
+                    .padding(.top, sellerProfile != nil ? 16 : 24)
                     
                     HStack {
                         Button(action: goPrev) { Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold)).frame(width: 56, height: 56).contentShape(Rectangle()) }
@@ -316,7 +377,7 @@ struct ListingDetailView: View {
             .ignoresSafeArea(edges: .top)
             .background(Color(.systemBackground))
             
-            // Bottom Sticky Navigation Row
+            // MARK: - Sticky Bottom Action Bar
             VStack(spacing: 12) {
                 if listing.sellerId == SupabaseManager.shared.client.auth.currentUser?.id {
                     HStack(spacing: 16) {
@@ -378,25 +439,31 @@ struct ListingDetailView: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 32)
-            // FIX: Solid color background to replace pattern
             .background(
                 Color(.systemBackground)
                     .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5)
             )
         }
         .background(Color(.systemBackground))
+        .task {
+            do {
+                self.sellerProfile = try await SupabaseManager.shared.client.from("profiles")
+                    .select().eq("id", value: listing.sellerId).single().execute().value
+            } catch { print("Failed to fetch seller: \(error)") }
+        }
         .sheet(isPresented: $showEditSheet) {
             EditListingView(listing: listing)
         }
         .fullScreenCover(isPresented: $showChatRoom) {
             NavigationStack {
                 ChatRoom(
-                    contactName: "Supabase User",
-                    contactAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200",
-                    initialListingId: listing.id,
+                    listing: listing,
+                    thread: nil,
+                    isModal: true,
                     autoFocus: true
                 )
             }
+            .environmentObject(appState)
         }
     }
     
@@ -440,6 +507,7 @@ struct GhostActionButton: View {
             .foregroundColor(isActive ? Color(.systemBackground) : color)
             .frame(maxWidth: .infinity).frame(height: 56)
             .background(isActive ? color : color.opacity(0.1))
+            .cornerRadius(16) // Re-applied corner radius to ensure active state is perfectly rounded
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(color, lineWidth: 1.5))
         }
     }

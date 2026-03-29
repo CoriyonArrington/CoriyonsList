@@ -349,17 +349,18 @@ struct FilterAndViewBar: View {
                 }
                 .sheet(isPresented: $showSortSheet) { SortSelectionSheet(sortOption: $sortOption).presentationDetents([.height(350)]) }
                 
+                // FIX: Updated background, foregroundColor, and fixedSize to perfectly match active buttons!
                 Button(action: { showViewSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: viewMode.icon)
-                        Text(viewMode.rawValue).fixedSize(horizontal: true, vertical: false)
+                        Text(viewMode.rawValue).fixedSize()
                         Image(systemName: "chevron.down")
                     }
                     .font(Theme.Typography.caption(weight: .bold))
                     .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
-                    .background(Theme.Colors.surfaceCard)
+                    .background(Color.primary)
                     .cornerRadius(Theme.Radius.small)
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color(.systemBackground))
                 }
                 .sheet(isPresented: $showViewSheet) { ViewSelectionSheet(viewMode: $viewMode).presentationDetents([.height(350)]) }
             }
