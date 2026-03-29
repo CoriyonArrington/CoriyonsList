@@ -480,7 +480,6 @@ struct PostView: View {
                 }
                 
             } catch {
-                print("Supabase Edge Function Error: \(error.localizedDescription)")
             }
         }
     }
@@ -576,7 +575,6 @@ struct PostView: View {
                     appState.triggerToast(message: "Listing Published Successfully")
                 }
             } catch {
-                print("Publish Error: \(error)")
                 await MainActor.run {
                     appState.triggerToast(message: "Failed to publish listing. Please try again.")
                     isPublishing = false

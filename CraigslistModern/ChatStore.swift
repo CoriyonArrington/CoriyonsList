@@ -83,7 +83,6 @@ class ChatStore: ObservableObject {
             }
             
         } catch {
-            print("Failed to fetch inbox: \(error)")
         }
     }
     
@@ -114,7 +113,6 @@ class ChatStore: ObservableObject {
             
             return newThread
         } catch {
-            print("Failed to create thread: \(error)")
             return nil
         }
     }
@@ -129,7 +127,6 @@ class ChatStore: ObservableObject {
             
             self.currentMessages = msgs
         } catch {
-            print("Failed to fetch messages: \(error)")
         }
     }
     
@@ -149,7 +146,6 @@ class ChatStore: ObservableObject {
                 .execute()
             
         } catch {
-            print("Failed to send message: \(error)")
         }
     }
     

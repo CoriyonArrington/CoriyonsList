@@ -379,7 +379,6 @@ class AppState: ObservableObject {
                 self.blockedUserIDs = Set(records.map { $0.blockedId })
             }
         } catch {
-            print("Failed to fetch blocked users: \(error)")
         }
     }
     
@@ -398,7 +397,6 @@ class AppState: ObservableObject {
                 let payload = BlockUserPayload(blockerId: currentId, blockedId: userId)
                 try await SupabaseManager.shared.client.from("blocked_users").insert(payload).execute()
             } catch {
-                print("Failed to block user: \(error)")
             }
         }
     }
@@ -415,7 +413,6 @@ class AppState: ObservableObject {
                     triggerToast(message: "Report Submitted to Admins")
                 }
             } catch {
-                print("Failed to submit report: \(error)")
                 await MainActor.run {
                     triggerToast(message: "Failed to submit report. Please try again.")
                 }
