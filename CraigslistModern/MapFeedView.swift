@@ -28,6 +28,14 @@ struct MapFeedView: View {
                 .onChange(of: nearbyDistance) { _, newDistance in
                     updateCameraPosition(for: newDistance)
                 }
+                .onChange(of: appState.isShowingFallback) { _, isFallback in
+                    if isFallback {
+                        let fallbackCoord = CLLocationCoordinate2D(latitude: 44.9778, longitude: -93.2650)
+                        withAnimation(.easeInOut(duration: 1.2)) {
+                            cameraPosition = .region(MKCoordinateRegion(center: fallbackCoord, span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)))
+                        }
+                    }
+                }
                 .onAppear {
                     locationManager.requestLocationIfAuthorized()
                     updateCameraPosition(for: nearbyDistance)
@@ -74,7 +82,7 @@ struct MapFeedView: View {
             UserAnnotation()
             ForEach(listings, id: \.id) { listing in
                 // PostGIS lat/lon extraction placeholder
-                Annotation(listing.title, coordinate: CLLocationCoordinate2D(latitude: 44.9778 + Double.random(in: -0.01...0.01), longitude: -93.2650 + Double.random(in: -0.01...0.01))) {
+                Annotation(listing.title, coordinate: CLLocationCoordinate2D(latitude: appState.savedLatitude + Double.random(in: -0.01...0.01), longitude: appState.savedLongitude + Double.random(in: -0.01...0.01))) {
                     Button(action: {
                         selectedListingID = listing.id
                         isDetailPresented = true
@@ -104,7 +112,8 @@ struct MapFeedView: View {
     }
     
     private func updateCameraPosition(for distance: Double) {
-        let center = locationManager.location?.coordinate ?? CLLocationCoordinate2D(latitude: 44.9778, longitude: -93.2650)
+        // Use AppState's persistent memory as the ultimate fallback instead of hardcoded MN
+        let center = locationManager.location?.coordinate ?? CLLocationCoordinate2D(latitude: appState.savedLatitude, longitude: appState.savedLongitude)
         let span = MKCoordinateSpan(latitudeDelta: distance * 0.025, longitudeDelta: distance * 0.025)
         withAnimation(.easeInOut(duration: 0.5)) {
             cameraPosition = .region(MKCoordinateRegion(center: center, span: span))

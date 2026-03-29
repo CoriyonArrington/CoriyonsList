@@ -4,9 +4,17 @@ import MapKit
 struct HomeFeedView: View {
     @EnvironmentObject var appState: AppState
     
+    // Reads directly from UserDefaults to set initial map camera position securely
     @State private var cameraPosition: MapCameraPosition = .region(
-        MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 44.9778, longitude: -93.2650), span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15))
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: UserDefaults.standard.object(forKey: "savedLatitude") as? Double ?? 44.9778,
+                longitude: UserDefaults.standard.object(forKey: "savedLongitude") as? Double ?? -93.2650
+            ),
+            span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+        )
     )
+    
     @State private var selectedListingID: UUID?
     @State private var isDetailPresented = false
     
@@ -87,6 +95,13 @@ struct HomeFeedView: View {
                         GlassHeader(searchText: .constant(""), placeholder: "What are you looking for?", onTapped: { appState.selectedTab = 1 })
                         FilterAndViewBar(viewMode: $viewMode, isNearbyMode: $isNearbyMode)
                             .padding(.top, 16)
+                        
+                        if appState.isShowingFallback {
+                            fallbackBanner()
+                                .padding(.horizontal, Theme.Spacing.screenMargin)
+                                .padding(.top, 16)
+                        }
+                        
                         Spacer()
                     }
                 } else {
@@ -96,6 +111,11 @@ struct HomeFeedView: View {
                                 FilterAndViewBar(viewMode: $viewMode, isNearbyMode: $isNearbyMode)
                                     .padding(.top, 16)
                                     .id("TopMarker")
+                                
+                                if appState.isShowingFallback {
+                                    fallbackBanner()
+                                        .padding(.horizontal, Theme.Spacing.screenMargin)
+                                }
                                 
                                 if homeListings.isEmpty {
                                     emptyStateView()
@@ -126,6 +146,26 @@ struct HomeFeedView: View {
         .onChange(of: isSwipeViewEnabled) { newValue in
             if !newValue && viewMode == .swipe { viewMode = .gallery }
         }
+    }
+    
+    @ViewBuilder
+    private func fallbackBanner() -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "globe.americas.fill")
+                .foregroundColor(Theme.Colors.primary)
+                .font(.system(size: 20))
+            Text("No items found nearby. Exploring featured listings in Minneapolis.")
+                .font(Theme.Typography.caption(weight: .semibold))
+                .foregroundColor(.primary)
+            Spacer()
+        }
+        .padding(16)
+        .background(Theme.Colors.primary.opacity(0.1))
+        .cornerRadius(Theme.Radius.small)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.small)
+                .stroke(Theme.Colors.primary.opacity(0.3), lineWidth: 1)
+        )
     }
     
     @ViewBuilder
