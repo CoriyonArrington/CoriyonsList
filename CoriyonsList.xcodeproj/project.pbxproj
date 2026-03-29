@@ -33,6 +33,7 @@
 		654553AF2F6545660071D6D9 /* CoriyonsListTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoriyonsListTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		654553B92F6545660071D6D9 /* CoriyonsListUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoriyonsListUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		65580BD82F77828600FF24D8 /* CoriyonsList-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "CoriyonsList-Info.plist"; sourceTree = "<group>"; };
+		658936B32F78FA5900B85703 /* CoriyonsList.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CoriyonsList.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -83,6 +84,7 @@
 		654553992F6545650071D6D9 = {
 			isa = PBXGroup;
 			children = (
+				658936B32F78FA5900B85703 /* CoriyonsList.entitlements */,
 				65580BD82F77828600FF24D8 /* CoriyonsList-Info.plist */,
 				654553A42F6545650071D6D9 /* CraigslistModern */,
 				654553B22F6545660071D6D9 /* CraigslistModernTests */,
@@ -410,6 +412,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CoriyonsList.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 644Z739Q37;
@@ -446,6 +449,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = CoriyonsList.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 644Z739Q37;
