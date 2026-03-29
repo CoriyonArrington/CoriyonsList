@@ -1,126 +1,23 @@
 import SwiftUI
+import Supabase
 
-// MARK: - Global Chat State
-class ChatStore: ObservableObject {
-    static let shared = ChatStore()
-    @Published var threads: [ChatThread] = []
-    
-    func addMessage(to contact: String, contactAvatar: String? = nil, message: String, listingId: UUID? = nil) {
-        let newBubble = ChatMessageBubble(text: message, isCurrentUser: true, timestamp: Date())
-        if let index = threads.firstIndex(where: { $0.contactName == contact }) {
-            threads[index].messages.append(newBubble)
-            threads[index].lastUpdated = Date()
-            if let avatar = contactAvatar, threads[index].contactAvatar == nil {
-                threads[index].contactAvatar = avatar
-            }
-            if let lId = listingId, threads[index].listingId == nil {
-                threads[index].listingId = lId
-            }
-        } else {
-            let newThread = ChatThread(contactName: contact, contactAvatar: contactAvatar, messages: [newBubble], lastUpdated: Date(), listingId: listingId)
-            threads.append(newThread)
-        }
-        threads.sort { $0.lastUpdated > $1.lastUpdated }
-    }
-    
-    func toggleHidden(for contact: String) {
-        if let index = threads.firstIndex(where: { $0.contactName == contact }) {
-            threads[index].isHidden.toggle()
-        }
-    }
-    
-    func deleteThread(for contact: String) {
-        threads.removeAll { $0.contactName == contact }
-    }
-    
-    func deleteMessage(in contact: String, messageId: UUID) {
-        guard let tIndex = threads.firstIndex(where: { $0.contactName == contact }) else { return }
-        threads[tIndex].messages.removeAll { $0.id == messageId }
-        // If thread is empty after deletion, remove the thread
-        if threads[tIndex].messages.isEmpty {
-            deleteThread(for: contact)
-        }
-    }
-    
-    func editMessage(in contact: String, messageId: UUID, newText: String) {
-        guard let tIndex = threads.firstIndex(where: { $0.contactName == contact }),
-              let mIndex = threads[tIndex].messages.firstIndex(where: { $0.id == messageId }) else { return }
-        threads[tIndex].messages[mIndex].text = newText
-        threads[tIndex].messages[mIndex].isEdited = true
-    }
-}
-
-struct ChatThread: Identifiable {
-    let id = UUID()
-    let contactName: String
-    var contactAvatar: String?
-    var messages: [ChatMessageBubble]
-    var lastUpdated: Date
-    var listingId: UUID?
-    var isHidden: Bool = false
-}
-
-struct ChatMessageBubble: Identifiable {
-    let id = UUID()
-    var text: String
-    let isCurrentUser: Bool
-    let timestamp: Date
-    var isEdited: Bool = false
-}
-
-// MARK: - Shared Avatar Helper
-struct ChatAvatarView: View {
-    var avatarUrl: String?
-    var name: String
-    var size: CGFloat = 48
-    
-    var body: some View {
-        if let urlStr = avatarUrl, let url = URL(string: urlStr) {
-            AsyncImage(url: url) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    fallback
-                }
-            }
-            .frame(width: size, height: size)
-            .clipShape(Circle())
-        } else {
-            fallback
-        }
-    }
-    
-    var fallback: some View {
-        ZStack {
-            Circle().fill(Theme.Colors.surfaceGray)
-            Text(String(name.prefix(1)))
-                .font(Theme.Typography.body(weight: .bold))
-                .foregroundColor(.primary)
-        }
-        .frame(width: size, height: size)
-    }
-}
-
-// MARK: - Main View
 struct ChatView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var chatStore = ChatStore.shared
     
     @State private var searchText = ""
-    @State private var chatStatus = "Active"
-    @State private var showNewChat = false
+    @State private var statusSelection = "Buying"
     
-    let options = ["Active", "Hidden"]
+    let options = ["Buying", "Selling"]
     
-    var filteredThreads: [ChatThread] {
-        let statusFiltered = chatStore.threads.filter { thread in
-            chatStatus == "Hidden" ? thread.isHidden : !thread.isHidden
+    // Live computed property for search and tabs
+    var filteredInbox: [InboxThread] {
+        guard let uid = appState.currentUserID else { return [] }
+        let filtered = chatStore.inbox.filter { item in
+            statusSelection == "Buying" ? item.thread.buyerId == uid : item.thread.sellerId == uid
         }
-        if searchText.isEmpty {
-            return statusFiltered
-        } else {
-            return statusFiltered.filter { $0.contactName.localizedCaseInsensitiveContains(searchText) }
-        }
+        if searchText.isEmpty { return filtered }
+        return filtered.filter { $0.listing.title.localizedCaseInsensitiveContains(searchText) }
     }
     
     var body: some View {
@@ -129,8 +26,9 @@ struct ChatView: View {
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 CraigslistPattern()
                 
-                VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
                     
+                    // MARK: - Custom Scrollable Segmented Bar (Matches FavoritesView)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Theme.Spacing.small) {
                             ForEach(options, id: \.self) { option in
@@ -138,15 +36,15 @@ struct ChatView: View {
                                     let generator = UIImpactFeedbackGenerator(style: .light)
                                     generator.impactOccurred()
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        chatStatus = option
+                                        statusSelection = option
                                     }
                                 }) {
                                     Text(option)
-                                        .font(Theme.Typography.caption(weight: chatStatus == option ? .bold : .semibold))
+                                        .font(Theme.Typography.caption(weight: statusSelection == option ? .bold : .semibold))
                                         .padding(.horizontal, Theme.Spacing.medium)
                                         .frame(minHeight: 38)
-                                        .background(chatStatus == option ? Theme.Colors.primary : Theme.Colors.surfaceCard)
-                                        .foregroundColor(chatStatus == option ? Color(.systemBackground) : .primary)
+                                        .background(statusSelection == option ? Theme.Colors.primary : Theme.Colors.surfaceCard)
+                                        .foregroundColor(statusSelection == option ? Color(.systemBackground) : .primary)
                                         .cornerRadius(Theme.Radius.small)
                                 }
                             }
@@ -156,54 +54,45 @@ struct ChatView: View {
                     .padding(.top, Theme.Spacing.medium)
                     .padding(.bottom, Theme.Spacing.large)
                     
-                    if filteredThreads.isEmpty {
+                    Text("Inbox")
+                        .font(Theme.Typography.headingM())
+                        .padding(.horizontal, Theme.Spacing.screenMargin)
+                        .padding(.bottom, Theme.Spacing.medium)
+                    
+                    // MARK: - Inbox Content
+                    if chatStore.isLoadingInbox {
+                        Spacer()
+                        ProgressView().tint(Theme.Colors.primary)
+                            .frame(maxWidth: .infinity)
+                        Spacer()
+                    } else if filteredInbox.isEmpty {
+                        Spacer()
                         VStack(spacing: Theme.Spacing.medium) {
-                            Image(systemName: chatStatus == "Hidden" ? "eye.slash.fill" : "message.fill")
+                            Image(systemName: "bubble.left.and.bubble.right")
                                 .font(.system(size: 48))
                                 .foregroundColor(.gray)
-                            Text("No \(chatStatus.lowercased()) messages.")
+                            Text(statusSelection == "Buying" ? "No buying messages yet." : "No selling messages yet.")
                                 .font(Theme.Typography.body())
                                 .foregroundColor(Theme.Colors.textSecondary)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 100)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        Spacer()
                     } else {
-                        // Native List ensures swipe-to-delete works perfectly
                         List {
-                            ForEach(filteredThreads) { thread in
+                            ForEach(filteredInbox) { item in
                                 ZStack {
-                                    ChatRow(thread: thread, chatStore: chatStore)
-                                    
-                                    NavigationLink(destination: ChatRoom(contactName: thread.contactName, contactAvatar: thread.contactAvatar)) {
+                                    InboxRow(item: item)
+                                    // Hides the double arrow by burying the link in a ZStack
+                                    NavigationLink(destination: ChatRoom(listing: item.listing, thread: item.thread, isModal: false, autoFocus: false)) {
                                         EmptyView()
                                     }
-                                    .opacity(0) // Hide the default chevron
+                                    .opacity(0)
                                 }
-                                .listRowInsets(EdgeInsets())
-                                .listRowSeparator(.hidden)
                                 .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 6, leading: Theme.Spacing.screenMargin, bottom: 6, trailing: Theme.Spacing.screenMargin))
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        withAnimation { chatStore.deleteThread(for: thread.contactName) }
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                    
-                                    Button {
-                                        withAnimation { chatStore.toggleHidden(for: thread.contactName) }
-                                    } label: {
-                                        Label(thread.isHidden ? "Unhide" : "Hide", systemImage: thread.isHidden ? "eye" : "eye.slash")
-                                    }
-                                    .tint(Theme.Colors.surfaceGray)
-                                }
-                                .contextMenu {
-                                    Button(role: .destructive) {
-                                        withAnimation { chatStore.deleteThread(for: thread.contactName) }
-                                    } label: { Label("Delete Chat", systemImage: "trash") }
-                                    
-                                    Button {
-                                        withAnimation { chatStore.toggleHidden(for: thread.contactName) }
-                                    } label: { Label(thread.isHidden ? "Unhide Chat" : "Hide Chat", systemImage: thread.isHidden ? "eye" : "eye.slash") }
+                                    Button(role: .destructive) { deleteThread(item: item) } label: { Label("Delete", systemImage: "trash") }
                                 }
                             }
                         }
@@ -212,76 +101,69 @@ struct ChatView: View {
                     }
                 }
                 .safeAreaInset(edge: .top) {
+                    // Injects the global Header View with the Search Bar
                     GlassHeader(searchText: $searchText, placeholder: "Search messages")
                 }
-                
-                // Floating Action Button
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Button(action: { showNewChat = true }) {
-                            Image(systemName: "square.and.pencil")
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 60, height: 60)
-                                .background(Theme.Colors.primary)
-                                .clipShape(Circle())
-                                .shadow(color: Theme.Colors.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-                        }
-                        .padding(.trailing, Theme.Spacing.screenMargin)
-                        .padding(.bottom, Theme.Spacing.large)
-                    }
+            }
+            .navigationBarHidden(true)
+            .task {
+                if let uid = appState.currentUserID {
+                    await chatStore.fetchInbox(currentUserId: uid)
                 }
             }
-            .sheet(isPresented: $showNewChat) {
-                NewChatView()
-            }
+        }
+    }
+    
+    private func deleteThread(item: InboxThread) {
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        
+        withAnimation { chatStore.inbox.removeAll { $0.id == item.id } }
+        
+        Task {
+            do {
+                try await SupabaseManager.shared.client.from("chat_threads").delete().eq("id", value: item.thread.id).execute()
+            } catch { print("Failed to delete thread: \(error)") }
         }
     }
 }
 
-struct ChatRow: View {
-    var thread: ChatThread
-    var chatStore: ChatStore
+struct InboxRow: View {
+    let item: InboxThread
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: Theme.Spacing.medium) {
-                ChatAvatarView(avatarUrl: thread.contactAvatar, name: thread.contactName, size: 48)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(thread.contactName).font(Theme.Typography.body(weight: .bold)).foregroundColor(.primary)
-                    if let lastMsg = thread.messages.last {
-                        Text(lastMsg.text).font(Theme.Typography.caption()).foregroundColor(Theme.Colors.textSecondary).lineLimit(1)
-                    }
-                }
-                Spacer()
-                
-                Text(formatInboxDate(thread.lastUpdated))
-                    .font(Theme.Typography.helper(weight: .bold))
-                    .foregroundColor(Theme.Colors.textSecondary)
+        HStack(spacing: 16) {
+            AsyncImage(url: URL(string: item.listing.images?.first ?? "")) { phase in
+                if let img = phase.image { img.resizable().scaledToFill() }
+                else { Color(.systemGray5).overlay(Image(systemName: "photo").foregroundColor(.gray)) }
             }
-            .padding(.horizontal, Theme.Spacing.screenMargin)
-            .padding(.vertical, Theme.Spacing.medium)
+            .frame(width: 60, height: 60)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
             
-            Divider().opacity(0.3).padding(.leading, 88)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.listing.title)
+                    .font(Theme.Typography.body(weight: .bold))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                
+                Text("$\(item.listing.price)")
+                    .font(Theme.Typography.caption(weight: .bold))
+                    .foregroundColor(Theme.Colors.success)
+                
+                Text("Tap to view conversation")
+                    .font(Theme.Typography.caption())
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .foregroundColor(Color(.systemGray3))
+                .font(.system(size: 14, weight: .bold))
         }
-        .background(Color(.systemGroupedBackground).opacity(0.95))
-    }
-    
-    private func formatInboxDate(_ date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) {
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
-            return formatter.string(from: date)
-        } else if calendar.isDateInYesterday(date) {
-            return "Yesterday"
-        } else {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MM/dd/yy"
-            return formatter.string(from: date)
-        }
+        .padding(12)
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 3)
     }
 }
