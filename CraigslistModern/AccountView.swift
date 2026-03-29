@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct AccountView: View {
     @EnvironmentObject var appState: AppState
@@ -80,6 +81,21 @@ struct AccountView: View {
                         }
                         .padding(.vertical, 12)
                         .padding(.horizontal, Theme.Spacing.screenMargin)
+                        
+                        Divider().padding(.leading, 40)
+                        
+                        // MARK: Trust & Safety - Blocked Users Row
+                        NavigationLink(destination: BlockedUsersView()) {
+                            HStack {
+                                Image(systemName: "nosign").foregroundColor(.primary).frame(width: 24, alignment: .leading)
+                                Text("Blocked Users").font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.system(size: 14, weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                            }
+                            .padding(.vertical, 16)
+                            .padding(.horizontal, Theme.Spacing.screenMargin)
+                        }
+                        .buttonStyle(.plain)
                     }
                     .background(Theme.Colors.surfaceCard)
                     .cornerRadius(Theme.Radius.medium)
@@ -283,5 +299,130 @@ struct ToggleRow: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, Theme.Spacing.screenMargin)
+    }
+}
+
+// MARK: - Trust & Safety: Blocked Users View
+struct BlockedUserProfile: Identifiable, Codable {
+    let id: UUID
+    let fullName: String?
+    let avatarUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case fullName = "full_name"
+        case avatarUrl = "avatar_url"
+    }
+}
+
+struct BlockedUsersView: View {
+    @EnvironmentObject var appState: AppState
+    @State private var blockedProfiles: [BlockedUserProfile] = []
+    @State private var isLoading = true
+    
+    var body: some View {
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
+            
+            if isLoading {
+                ProgressView()
+                    .tint(Theme.Colors.primary)
+            } else if blockedProfiles.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .font(.system(size: 48))
+                        .foregroundColor(Theme.Colors.textSecondary)
+                    Text("No blocked users.")
+                        .font(Theme.Typography.body())
+                        .foregroundColor(Theme.Colors.textSecondary)
+                }
+            } else {
+                List {
+                    ForEach(blockedProfiles) { profile in
+                        HStack(spacing: 16) {
+                            AsyncImage(url: URL(string: profile.avatarUrl ?? "")) { phase in
+                                if let image = phase.image { image.resizable().scaledToFill() }
+                                else { Color(.systemGray4).overlay(Image(systemName: "person.fill").foregroundColor(.gray)) }
+                            }
+                            .frame(width: 48, height: 48)
+                            .clipShape(Circle())
+                            
+                            Text(profile.fullName ?? "Unknown User")
+                                .font(Theme.Typography.body(weight: .semibold))
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                            
+                            Button(action: { unblockUser(profile.id) }) {
+                                Text("Unblock")
+                                    .font(Theme.Typography.caption(weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.red)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain) // Prevents the whole row from triggering the button
+                        }
+                        .padding(.vertical, 4)
+                        .listRowBackground(Theme.Colors.surfaceCard)
+                    }
+                }
+                .scrollContentBackground(.hidden)
+            }
+        }
+        .navigationTitle("Blocked Users")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await fetchBlockedProfiles()
+        }
+    }
+    
+    private func fetchBlockedProfiles() async {
+        guard !appState.blockedUserIDs.isEmpty else {
+            isLoading = false
+            return
+        }
+        
+        do {
+            let ids = Array(appState.blockedUserIDs)
+            let profiles: [BlockedUserProfile] = try await SupabaseManager.shared.client
+                .from("profiles")
+                .select("id, full_name, avatar_url")
+                .in("id", values: ids)
+                .execute()
+                .value
+            
+            await MainActor.run {
+                self.blockedProfiles = profiles
+                self.isLoading = false
+            }
+        } catch {
+            print("Failed to fetch blocked profiles: \(error)")
+            await MainActor.run { isLoading = false }
+        }
+    }
+    
+    private func unblockUser(_ userId: UUID) {
+        guard let currentId = appState.currentUserID else { return }
+        
+        // Optimistic UI update
+        withAnimation {
+            appState.blockedUserIDs.remove(userId)
+            blockedProfiles.removeAll { $0.id == userId }
+        }
+        
+        Task {
+            do {
+                try await SupabaseManager.shared.client
+                    .from("blocked_users")
+                    .delete()
+                    .eq("blocker_id", value: currentId)
+                    .eq("blocked_id", value: userId)
+                    .execute()
+            } catch {
+                print("Failed to unblock user: \(error)")
+            }
+        }
     }
 }
