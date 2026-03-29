@@ -92,6 +92,10 @@ struct ListingDetailView: View {
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     
+    // Trust & Safety State
+    @State private var showReportDialog = false
+    @State private var showBlockAlert = false
+    
     // State to hold the fetched seller identity
     @State private var sellerProfile: SellerProfile?
     
@@ -342,16 +346,17 @@ struct ListingDetailView: View {
                                 action: { handleAction { onDelete() } },
                                 themeColor: .primary
                             )
+                            // Trust & Safety Options
                             GhostActionButton(
-                                icon: "arrow.uturn.backward",
-                                title: "Undo Last Action",
-                                action: { appState.triggerToast(message: "Action Undone") },
-                                themeColor: .primary
+                                icon: "nosign",
+                                title: "Block Seller",
+                                action: { showBlockAlert = true },
+                                isDestructive: true
                             )
                             GhostActionButton(
                                 icon: "flag",
                                 title: "Report Listing",
-                                action: { appState.triggerToast(message: "Listing Reported to Admin") },
+                                action: { showReportDialog = true },
                                 isDestructive: true
                             )
                         }
@@ -469,6 +474,34 @@ struct ListingDetailView: View {
             }
             .environmentObject(appState)
         }
+        // Trust & Safety Overlays
+        .confirmationDialog("Report Listing", isPresented: $showReportDialog, titleVisibility: .visible) {
+            Button("Spam") { submitReport(reason: "Spam") }
+            Button("Scam or Fraud") { submitReport(reason: "Scam") }
+            Button("Inappropriate Content") { submitReport(reason: "Inappropriate Content") }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Why are you reporting this listing?")
+        }
+        .alert("Block Seller", isPresented: $showBlockAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Block", role: .destructive) {
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+                appState.blockUser(listing.sellerId)
+                onDismiss()
+            }
+        } message: {
+            Text("You will no longer see listings or messages from this user. This action cannot be undone.")
+        }
+    }
+    
+    private func submitReport(reason: String) {
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        appState.reportItem(targetId: listing.id, type: "listing", reason: reason)
+        appState.toggleHidden(listing.id) // Optimistically hide it from their feed locally
+        onDismiss()
     }
     
     private func timeAgo(from date: Date) -> String {
