@@ -260,10 +260,13 @@ struct ListingDetailView: View {
                     
                     Divider().padding(.horizontal, 20)
                     
-                    // MARK: - Seller Profile Info Card (Moved above the buttons)
+                    // MARK: - Seller Profile Info Card
                     if let seller = sellerProfile {
+                        // Instant Avatar Override for Current User in case they just logged in
+                        let displayAvatar = (listing.sellerId == appState.currentUserID) ? (appState.displayAvatarURL ?? seller.avatarUrl) : seller.avatarUrl
+                        
                         HStack(spacing: 16) {
-                            AsyncImage(url: URL(string: seller.avatarUrl ?? "")) { phase in
+                            AsyncImage(url: URL(string: displayAvatar ?? "")) { phase in
                                 if let img = phase.image { img.resizable().scaledToFill() }
                                 else { Color(.systemGray4).overlay(Image(systemName: "person.fill").foregroundColor(.gray)) }
                             }
@@ -289,11 +292,12 @@ struct ListingDetailView: View {
                                     }
                                 }
                             }
-                            Spacer() // Removes the chevron and pushes content left
+                            Spacer()
                         }
                         .padding(16)
                         .background(Color(.secondarySystemGroupedBackground))
                         .cornerRadius(16)
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.1), lineWidth: 1)) // Dark mode fix
                         .padding(.horizontal, 20)
                         .padding(.top, 24)
                     }
@@ -325,9 +329,9 @@ struct ListingDetailView: View {
                             .font(.custom("Montserrat", size: 16).weight(.bold))
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity).frame(height: 56)
-                            .background(Color.primary.opacity(0.1))
+                            .background(Color(.secondarySystemGroupedBackground))
                             .cornerRadius(16)
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary, lineWidth: 1.5))
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.3), lineWidth: 1.5)) // Dark mode fix
                         }
                         
                         if showAllActions {
@@ -384,12 +388,12 @@ struct ListingDetailView: View {
                         Button(action: { showEditSheet = true }) {
                             Text("Edit Post")
                                 .font(.custom("Montserrat", size: 17).weight(.bold))
-                                .foregroundColor(Theme.Colors.primary)
+                                .foregroundColor(Color.craigslistPurple)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 56)
                                 .background(Color(.systemBackground))
-                                .overlay(RoundedRectangle(cornerRadius: 16).fill(Theme.Colors.primary.opacity(0.1)))
-                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.Colors.primary, lineWidth: 1.5))
+                                .overlay(RoundedRectangle(cornerRadius: 16).fill(Color.craigslistPurple.opacity(0.1)))
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.craigslistPurple, lineWidth: 1.5))
                                 .cornerRadius(16)
                         }
                         
@@ -421,7 +425,7 @@ struct ListingDetailView: View {
                             .foregroundColor(Color(.systemBackground))
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
-                            .background(Theme.Colors.primary)
+                            .background(Color.craigslistPurple)
                             .cornerRadius(16)
                     }
                 }
@@ -449,7 +453,7 @@ struct ListingDetailView: View {
             do {
                 self.sellerProfile = try await SupabaseManager.shared.client.from("profiles")
                     .select().eq("id", value: listing.sellerId).single().execute().value
-            } catch { print("Failed to fetch seller: \(error)") }
+            } catch { }
         }
         .sheet(isPresented: $showEditSheet) {
             EditListingView(listing: listing)
@@ -506,9 +510,9 @@ struct GhostActionButton: View {
             .font(.custom("Montserrat", size: 16).weight(.bold))
             .foregroundColor(isActive ? Color(.systemBackground) : color)
             .frame(maxWidth: .infinity).frame(height: 56)
-            .background(isActive ? color : color.opacity(0.1))
-            .cornerRadius(16) // Re-applied corner radius to ensure active state is perfectly rounded
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(color, lineWidth: 1.5))
+            .background(isActive ? color : Color(.secondarySystemGroupedBackground))
+            .cornerRadius(16)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(isActive ? color : color.opacity(0.3), lineWidth: 1.5)) // Dark mode fix
         }
     }
 }

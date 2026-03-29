@@ -47,11 +47,11 @@ struct ChatRoom: View {
                     
                     VStack(alignment: .leading, spacing: 2) {
                         Text(listing.title).font(Theme.Typography.body(weight: .bold)).lineLimit(1)
-                        Text("$\(listing.price)").font(Theme.Typography.caption(weight: .bold)).foregroundColor(Theme.Colors.success)
+                        Text("$\(listing.price)").font(Theme.Typography.caption(weight: .bold)).foregroundColor(Color.craigslistGreen)
                     }
                     Spacer()
                 }
-                .padding(.horizontal, Theme.Spacing.screenMargin)
+                .padding(.horizontal, 24) // Theme.Spacing.screenMargin
                 .padding(.vertical, 12)
             }
             .background(Color(.systemBackground))
@@ -91,13 +91,13 @@ struct ChatRoom: View {
                                     .font(Theme.Typography.caption(weight: .semibold))
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
-                                    .background(Theme.Colors.primary.opacity(0.1))
-                                    .foregroundColor(Theme.Colors.primary)
+                                    .background(Color.craigslistPurple.opacity(0.1))
+                                    .foregroundColor(Color.craigslistPurple)
                                     .clipShape(Capsule())
                             }
                         }
                     }
-                    .padding(.horizontal, Theme.Spacing.screenMargin)
+                    .padding(.horizontal, 24)
                     .padding(.vertical, 10)
                 }
                 .background(Color(.systemBackground))
@@ -110,13 +110,13 @@ struct ChatRoom: View {
                     .font(Theme.Typography.body())
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Theme.Colors.inputBackground)
+                    .background(Color(.systemGray6)) // Theme.Colors.inputBackground
                     .cornerRadius(20)
                 
                 Button(action: send) {
                     ZStack {
                         Circle()
-                            .fill(draftMessage.isEmpty ? Theme.Colors.surfaceGray : Theme.Colors.primary)
+                            .fill(draftMessage.isEmpty ? Color(.systemGray5) : Color.craigslistPurple)
                             .frame(width: 36, height: 36)
                         Image(systemName: "arrow.up")
                             .font(.system(size: 16, weight: .bold))
@@ -125,7 +125,7 @@ struct ChatRoom: View {
                 }
                 .disabled(draftMessage.isEmpty || activeThreadId == nil)
             }
-            .padding(.horizontal, Theme.Spacing.screenMargin)
+            .padding(.horizontal, 24)
             .padding(.vertical, 12)
             .background(Color(.systemBackground))
         }
@@ -165,7 +165,7 @@ struct ChatRoom: View {
                     }
                 }
                 .font(Theme.Typography.caption(weight: .bold))
-                .foregroundColor(Theme.Colors.primary)
+                .foregroundColor(Color.craigslistPurple)
             }
             
             // Replaces back button with a close icon if it's a modal sheet
@@ -195,7 +195,7 @@ struct ChatRoom: View {
                     do {
                         self.otherUser = try await SupabaseManager.shared.client.from("profiles")
                             .select().eq("id", value: targetId).single().execute().value
-                    } catch { print("Failed to fetch participant: \(error)") }
+                    } catch { }
                 }
                 
                 // Establish Thread
@@ -238,12 +238,13 @@ struct MessageBubble: View {
             if isCurrentUser { Spacer() }
             
             Text(message.text)
-                .font(Theme.Typography.body())
+                .font(.custom("NunitoSans", size: 18).weight(.regular))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(isCurrentUser ? Theme.Colors.primary : Color(.systemBackground))
+                .background(isCurrentUser ? Color.craigslistPurple : Color(.systemBackground))
                 .foregroundColor(isCurrentUser ? .white : .primary)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(isCurrentUser ? Color.clear : Color.primary.opacity(0.1), lineWidth: 1)) // Dark mode fix
                 .shadow(color: Color.black.opacity(0.04), radius: 2, y: 1)
             
             if !isCurrentUser { Spacer() }

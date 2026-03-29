@@ -47,7 +47,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         DispatchQueue.main.async {
             self.isRequesting = false
         }
-        print("Location error: \(error)")
     }
 }
 
@@ -69,6 +68,7 @@ struct Theme {
         static func headingXL() -> Font { .custom("Montserrat", size: 35).weight(.bold) }
         static func headingL() -> Font { .custom("Montserrat", size: 28).weight(.bold) }
         static func headingM() -> Font { .custom("Montserrat", size: 23).weight(.bold) }
+        static func headingS() -> Font { .custom("Montserrat", size: 18).weight(.bold) } // Added for user card
         
         static func body(weight: Font.Weight = .regular) -> Font { .custom("NunitoSans", size: 18).weight(weight) }
         static func caption(weight: Font.Weight = .regular) -> Font { .custom("NunitoSans", size: 14).weight(weight) }
@@ -172,7 +172,6 @@ struct CraigslistPattern: View {
                     Image(systemName: "bag.fill")
                         .font(.system(size: 24))
                         .foregroundColor(colorScheme == .dark ? .white : .black)
-                        // FIX: Opacity doubled to ensure the pattern is noticeably visible
                         .opacity(colorScheme == .dark ? 0.08 : 0.05)
                         .rotationEffect(.degrees(rotation))
                         .frame(height: geo.size.width / 4)
@@ -208,8 +207,8 @@ struct GlassHeader: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 
                 Button(action: { showLocationSheet = true }) {
+                    // FIXED: Removed the location.fill image
                     HStack(spacing: Theme.Spacing.small) {
-                        Image(systemName: "location.fill").foregroundColor(.primary).font(.system(size: 14))
                         Text(appState.selectedLocation)
                             .font(Theme.Typography.body(weight: .bold))
                             .foregroundColor(.primary)
@@ -220,7 +219,22 @@ struct GlassHeader: View {
                 Spacer()
                 
                 Button(action: { showAccountSheet = true }) {
-                    Image(systemName: "person.circle.fill").resizable().frame(width: 32, height: 32).foregroundColor(Theme.Colors.primary)
+                    if let avatarUrl = appState.displayAvatarURL,
+                       let url = URL(string: avatarUrl) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            ProgressView()
+                        }
+                        .frame(width: 32, height: 32)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                    } else {
+                        Image(systemName: "person.circle.fill")
+                            .resizable()
+                            .frame(width: 32, height: 32)
+                            .foregroundColor(Theme.Colors.primary)
+                    }
                 }
                 .sheet(isPresented: $showAccountSheet) {
                     AccountView().presentationDetents([.medium, .large])
@@ -349,7 +363,6 @@ struct FilterAndViewBar: View {
                 }
                 .sheet(isPresented: $showSortSheet) { SortSelectionSheet(sortOption: $sortOption).presentationDetents([.height(350)]) }
                 
-                // FIX: Updated background, foregroundColor, and fixedSize to perfectly match active buttons!
                 Button(action: { showViewSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: viewMode.icon)
