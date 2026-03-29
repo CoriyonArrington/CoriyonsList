@@ -27,6 +27,39 @@ struct ProfileUpdate: Encodable {
     let avatar_url: String
 }
 
+// MARK: - Trust & Safety Payloads
+struct BlockUserPayload: Encodable {
+    let blockerId: UUID
+    let blockedId: UUID
+    
+    enum CodingKeys: String, CodingKey {
+        case blockerId = "blocker_id"
+        case blockedId = "blocked_id"
+    }
+}
+
+struct ReportItemPayload: Encodable {
+    let reporterId: UUID
+    let targetId: UUID
+    let reportType: String
+    let reason: String
+    
+    enum CodingKeys: String, CodingKey {
+        case reporterId = "reporter_id"
+        case targetId = "target_id"
+        case reportType = "report_type"
+        case reason = "reason"
+    }
+}
+
+struct BlockedUserRecord: Decodable {
+    let blockedId: UUID
+    
+    enum CodingKeys: String, CodingKey {
+        case blockedId = "blocked_id"
+    }
+}
+
 @MainActor
 class AppState: ObservableObject {
     
@@ -55,6 +88,7 @@ class AppState: ObservableObject {
     @Published var favoriteIDs: Set<UUID> = []
     @Published var hiddenIDs: Set<UUID> = []
     @Published var votedIDs: Set<UUID> = []
+    @Published var blockedUserIDs: Set<UUID> = []
     
     @Published var previousTab: Int = 0
     @Published var selectedTab: Int = 0 {
@@ -136,6 +170,7 @@ class AppState: ObservableObject {
             }
             
             await fetchUserProfile()
+            await fetchBlockedUsers() // Must be fetched before listings
             await fetchListings(longitude: -93.2650, latitude: 44.9778, radiusInMiles: 50.0)
             await fetchUserInteractions()
         } catch {
@@ -218,6 +253,7 @@ class AppState: ObservableObject {
                 self.favoriteIDs.removeAll()
                 self.votedIDs.removeAll()
                 self.hiddenIDs.removeAll()
+                self.blockedUserIDs.removeAll()
             }
         } catch {
         }
@@ -280,7 +316,8 @@ class AppState: ObservableObject {
                 .execute()
                 .value
             
-            self.listings = fetchedListings
+            // Trust & Safety: Silently drop listings from blocked users before they ever hit the UI
+            self.listings = fetchedListings.filter { !self.blockedUserIDs.contains($0.sellerId) }
         } catch {
             self.errorMessage = "Failed to load local listings. Please check your connection."
         }
@@ -304,6 +341,66 @@ class AppState: ObservableObject {
                 self.hiddenIDs = Set(interactions.filter { $0.interactionType == "hide" }.map { $0.listingId })
             }
         } catch {
+        }
+    }
+    
+    // MARK: - Trust & Safety
+    func fetchBlockedUsers() async {
+        guard let userId = currentUserID else { return }
+        do {
+            let records: [BlockedUserRecord] = try await SupabaseManager.shared.client
+                .from("blocked_users")
+                .select("blocked_id")
+                .eq("blocker_id", value: userId)
+                .execute()
+                .value
+            
+            await MainActor.run {
+                self.blockedUserIDs = Set(records.map { $0.blockedId })
+            }
+        } catch {
+            print("Failed to fetch blocked users: \(error)")
+        }
+    }
+    
+    func blockUser(_ userId: UUID) {
+        guard let currentId = currentUserID, currentId != userId else { return }
+        
+        // Optimistically remove them and all their listings from the active feed
+        withAnimation {
+            self.blockedUserIDs.insert(userId)
+            self.listings.removeAll { $0.sellerId == userId }
+        }
+        
+        triggerToast(message: "User Blocked")
+        
+        Task {
+            do {
+                let payload = BlockUserPayload(blockerId: currentId, blockedId: userId)
+                try await SupabaseManager.shared.client.from("blocked_users").insert(payload).execute()
+            } catch {
+                print("Failed to block user: \(error)")
+            }
+        }
+    }
+    
+    func reportItem(targetId: UUID, type: String, reason: String) {
+        guard let currentId = currentUserID else { return }
+        
+        Task {
+            do {
+                let payload = ReportItemPayload(reporterId: currentId, targetId: targetId, reportType: type, reason: reason)
+                try await SupabaseManager.shared.client.from("reports").insert(payload).execute()
+                
+                await MainActor.run {
+                    triggerToast(message: "Report Submitted to Admins")
+                }
+            } catch {
+                print("Failed to submit report: \(error)")
+                await MainActor.run {
+                    triggerToast(message: "Failed to submit report. Please try again.")
+                }
+            }
         }
     }
     
