@@ -71,16 +71,13 @@ class AppState: ObservableObject {
     @Published var currentUserProfile: [String: Any]? = nil
     @Published var oauthAvatarURL: String? = nil
     
-    // FIXED: Smart property that now prioritizes explicit storage uploads over OAuth defaults
     var displayAvatarURL: String? {
         let dbAvatar = currentUserProfile?["avatar_url"] as? String
         
-        // If the database has a Supabase storage URL (meaning they explicitly uploaded one), prioritize it
         if let dbAvatar = dbAvatar, dbAvatar.contains("supabase.co") || dbAvatar.contains("avatars") {
             return dbAvatar
         }
         
-        // Otherwise, fall back to the OAuth avatar, and finally the generic DB avatar
         return oauthAvatarURL ?? dbAvatar
     }
     
@@ -89,6 +86,8 @@ class AppState: ObservableObject {
     @Published var hiddenIDs: Set<UUID> = []
     @Published var votedIDs: Set<UUID> = []
     @Published var blockedUserIDs: Set<UUID> = []
+    
+    @Published var isShowingFallback: Bool = false
     
     @Published var previousTab: Int = 0
     @Published var selectedTab: Int = 0 {
@@ -99,7 +98,19 @@ class AppState: ObservableObject {
         }
     }
     
-    @Published var selectedLocation: String = "Minneapolis, MN"
+    // FIXED: Persistent Location State
+    @Published var selectedLocation: String = UserDefaults.standard.string(forKey: "savedLocationName") ?? "Minneapolis, MN" {
+        didSet { UserDefaults.standard.set(selectedLocation, forKey: "savedLocationName") }
+    }
+    
+    @Published var savedLatitude: Double = UserDefaults.standard.object(forKey: "savedLatitude") as? Double ?? 44.9778 {
+        didSet { UserDefaults.standard.set(savedLatitude, forKey: "savedLatitude") }
+    }
+    
+    @Published var savedLongitude: Double = UserDefaults.standard.object(forKey: "savedLongitude") as? Double ?? -93.2650 {
+        didSet { UserDefaults.standard.set(savedLongitude, forKey: "savedLongitude") }
+    }
+    
     @Published var selectedTopCategory: String? = nil
     @Published var selectedSubCategory: String? = nil
     
@@ -170,8 +181,12 @@ class AppState: ObservableObject {
             }
             
             await fetchUserProfile()
-            await fetchBlockedUsers() // Must be fetched before listings
-            await fetchListings(longitude: -93.2650, latitude: 44.9778, radiusInMiles: 50.0)
+            await fetchBlockedUsers()
+            
+            // FIXED: Dynamically fetch using persisted memory instead of hardcoded coordinates
+            let initialRadius = UserDefaults.standard.double(forKey: "nearbyDistance")
+            await fetchListings(longitude: savedLongitude, latitude: savedLatitude, radiusInMiles: initialRadius > 0 ? initialRadius : 50.0)
+            
             await fetchUserInteractions()
         } catch {
             await MainActor.run {
@@ -184,7 +199,6 @@ class AppState: ObservableObject {
         }
     }
     
-    // Consolidates the storage upload AND database profile update
     func updateProfile(fullName: String, avatarImageData: Data?) async -> Bool {
         guard let uid = currentUserID else { return false }
         
@@ -193,7 +207,6 @@ class AppState: ObservableObject {
         var finalAvatarUrl = self.displayAvatarURL ?? ""
         
         do {
-            // MARK: - 1. Handle Storage Upload (If Image Changed)
             if let imageData = avatarImageData {
                 let filename = "\(UUID().uuidString)-avatar.jpg"
                 let path = "\(uid)/\(filename)"
@@ -211,7 +224,6 @@ class AppState: ObservableObject {
                     .getPublicURL(path: path).absoluteString
             }
             
-            // MARK: - 2. Handle Database Update
             let updatePayload = ProfileUpdate(full_name: fullName, avatar_url: finalAvatarUrl)
             
             try await SupabaseManager.shared.client
@@ -220,7 +232,6 @@ class AppState: ObservableObject {
                 .eq("id", value: uid)
                 .execute()
             
-            // Refresh local profile state
             await fetchUserProfile()
             
             await MainActor.run {
@@ -254,6 +265,7 @@ class AppState: ObservableObject {
                 self.votedIDs.removeAll()
                 self.hiddenIDs.removeAll()
                 self.blockedUserIDs.removeAll()
+                self.isShowingFallback = false
             }
         } catch {
         }
@@ -316,8 +328,16 @@ class AppState: ObservableObject {
                 .execute()
                 .value
             
-            // Trust & Safety: Silently drop listings from blocked users before they ever hit the UI
-            self.listings = fetchedListings.filter { !self.blockedUserIDs.contains($0.sellerId) }
+            let safeListings = fetchedListings.filter { !self.blockedUserIDs.contains($0.sellerId) }
+            self.listings = safeListings
+            
+            if !safeListings.isEmpty && !self.selectedLocation.contains("MN") {
+                self.isShowingFallback = true
+                self.triggerToast(message: "No local results. Showing featured listings.")
+            } else {
+                self.isShowingFallback = false
+            }
+            
         } catch {
             self.errorMessage = "Failed to load local listings. Please check your connection."
         }
@@ -366,7 +386,6 @@ class AppState: ObservableObject {
     func blockUser(_ userId: UUID) {
         guard let currentId = currentUserID, currentId != userId else { return }
         
-        // Optimistically remove them and all their listings from the active feed
         withAnimation {
             self.blockedUserIDs.insert(userId)
             self.listings.removeAll { $0.sellerId == userId }
