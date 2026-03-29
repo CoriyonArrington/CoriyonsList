@@ -21,12 +21,35 @@ struct UserInteraction: Codable {
     }
 }
 
+// Struct strictly used for explicit profile updates
+struct ProfileUpdate: Encodable {
+    let full_name: String
+    let avatar_url: String
+}
+
 @MainActor
 class AppState: ObservableObject {
     
     // MARK: - Authentication State
     @Published var isAuthenticated: Bool = false
     @Published var currentUserID: UUID? = nil
+    @Published var currentUserEmail: String? = nil
+    @Published var authProvider: String? = nil
+    @Published var currentUserProfile: [String: Any]? = nil
+    @Published var oauthAvatarURL: String? = nil
+    
+    // FIXED: Smart property that now prioritizes explicit storage uploads over OAuth defaults
+    var displayAvatarURL: String? {
+        let dbAvatar = currentUserProfile?["avatar_url"] as? String
+        
+        // If the database has a Supabase storage URL (meaning they explicitly uploaded one), prioritize it
+        if let dbAvatar = dbAvatar, dbAvatar.contains("supabase.co") || dbAvatar.contains("avatars") {
+            return dbAvatar
+        }
+        
+        // Otherwise, fall back to the OAuth avatar, and finally the generic DB avatar
+        return oauthAvatarURL ?? dbAvatar
+    }
     
     // MARK: - UI State & User Actions
     @Published var favoriteIDs: Set<UUID> = []
@@ -43,7 +66,6 @@ class AppState: ObservableObject {
     }
     
     @Published var selectedLocation: String = "Minneapolis, MN"
-    // FIX: Default to nil so "All Categories" is shown on launch
     @Published var selectedTopCategory: String? = nil
     @Published var selectedSubCategory: String? = nil
     
@@ -73,21 +95,112 @@ class AppState: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
-    // MARK: - Auth Methods
+    // MARK: - Auth & Account Methods
     func checkAuth() async {
         do {
             let session = try await SupabaseManager.shared.client.auth.session
             await MainActor.run {
                 self.currentUserID = session.user.id
+                self.currentUserEmail = session.user.email
+                
+                let providerRaw = String(describing: session.user.appMetadata["provider"] ?? "email")
+                if providerRaw.lowercased().contains("google") { self.authProvider = "Google" }
+                else if providerRaw.lowercased().contains("apple") { self.authProvider = "Apple" }
+                else { self.authProvider = "Email" }
+                
+                var bestAvatar: String? = nil
+                
+                let metadata = session.user.userMetadata
+                if let data = try? JSONEncoder().encode(metadata),
+                   let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let pic = (dict["avatar_url"] as? String) ?? (dict["picture"] as? String), pic.hasPrefix("http") {
+                        bestAvatar = pic
+                    }
+                }
+                
+                if bestAvatar == nil, let identities = session.user.identities {
+                    for identity in identities {
+                        let identityData = identity.identityData
+                        if let data = try? JSONEncoder().encode(identityData),
+                           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                            if let pic = (dict["avatar_url"] as? String) ?? (dict["picture"] as? String), pic.hasPrefix("http") {
+                                bestAvatar = pic
+                                break
+                            }
+                        }
+                    }
+                }
+                
+                self.oauthAvatarURL = bestAvatar
                 self.isAuthenticated = true
             }
+            
+            await fetchUserProfile()
             await fetchListings(longitude: -93.2650, latitude: 44.9778, radiusInMiles: 50.0)
             await fetchUserInteractions()
         } catch {
             await MainActor.run {
                 self.isAuthenticated = false
                 self.currentUserID = nil
+                self.currentUserEmail = nil
+                self.authProvider = nil
+                self.oauthAvatarURL = nil
             }
+        }
+    }
+    
+    // Consolidates the storage upload AND database profile update
+    func updateProfile(fullName: String, avatarImageData: Data?) async -> Bool {
+        guard let uid = currentUserID else { return false }
+        
+        await MainActor.run { isLoading = true }
+        
+        var finalAvatarUrl = self.displayAvatarURL ?? ""
+        
+        do {
+            // MARK: - 1. Handle Storage Upload (If Image Changed)
+            if let imageData = avatarImageData {
+                let filename = "\(UUID().uuidString)-avatar.jpg"
+                let path = "\(uid)/\(filename)"
+                
+                try await SupabaseManager.shared.client.storage
+                    .from("avatars")
+                    .upload(
+                        path,
+                        data: imageData,
+                        options: FileOptions(contentType: "image/jpeg", upsert: true)
+                    )
+                
+                finalAvatarUrl = try SupabaseManager.shared.client.storage
+                    .from("avatars")
+                    .getPublicURL(path: path).absoluteString
+            }
+            
+            // MARK: - 2. Handle Database Update
+            let updatePayload = ProfileUpdate(full_name: fullName, avatar_url: finalAvatarUrl)
+            
+            try await SupabaseManager.shared.client
+                .from("profiles")
+                .update(updatePayload)
+                .eq("id", value: uid)
+                .execute()
+            
+            // Refresh local profile state
+            await fetchUserProfile()
+            
+            await MainActor.run {
+                triggerToast(message: "Profile updated successfully.")
+                self.oauthAvatarURL = finalAvatarUrl
+                isLoading = false
+            }
+            return true
+            
+        } catch {
+            await MainActor.run {
+                triggerToast(message: "Failed to update profile image.")
+                isLoading = false
+            }
+            return false
         }
     }
     
@@ -97,13 +210,59 @@ class AppState: ObservableObject {
             await MainActor.run {
                 self.isAuthenticated = false
                 self.currentUserID = nil
+                self.currentUserEmail = nil
+                self.authProvider = nil
+                self.currentUserProfile = nil
+                self.oauthAvatarURL = nil
                 self.listings = []
                 self.favoriteIDs.removeAll()
                 self.votedIDs.removeAll()
                 self.hiddenIDs.removeAll()
             }
         } catch {
-            print("Error signing out: \(error)")
+        }
+    }
+    
+    func fetchUserProfile() async {
+        guard let userId = currentUserID else { return }
+        do {
+            let response = try await SupabaseManager.shared.client
+                .from("profiles")
+                .select()
+                .eq("id", value: userId)
+                .single()
+                .execute()
+            
+            if let profile = try JSONSerialization.jsonObject(with: response.data) as? [String: Any] {
+                await MainActor.run {
+                    self.currentUserProfile = profile
+                }
+            }
+        } catch {
+        }
+    }
+
+    func deleteAccount() async -> Bool {
+        guard currentUserID != nil else { return false }
+        
+        await MainActor.run { isLoading = true; errorMessage = nil }
+        
+        do {
+            try await SupabaseManager.shared.client.rpc("delete_user_account").execute()
+            
+            await signOut()
+            
+            await MainActor.run {
+                triggerToast(message: "Account permanently deleted.")
+                isLoading = false
+            }
+            return true
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Deletion Failed: \(error.localizedDescription)"
+                isLoading = false
+            }
+            return false
         }
     }
     
@@ -124,7 +283,6 @@ class AppState: ObservableObject {
             self.listings = fetchedListings
         } catch {
             self.errorMessage = "Failed to load local listings. Please check your connection."
-            print("Supabase RPC Query Error: \(error.localizedDescription)")
         }
         
         isLoading = false
@@ -146,7 +304,6 @@ class AppState: ObservableObject {
                 self.hiddenIDs = Set(interactions.filter { $0.interactionType == "hide" }.map { $0.listingId })
             }
         } catch {
-            print("Failed to fetch interactions: \(error.localizedDescription)")
         }
     }
     
@@ -176,7 +333,6 @@ class AppState: ObservableObject {
                     triggerToast(message: "Listing Permanently Deleted")
                 }
             } catch {
-                print("Supabase Delete Error: \(error)")
                 await MainActor.run {
                     withAnimation {
                         self.listings.insert(listingBackup, at: 0)
@@ -211,7 +367,7 @@ class AppState: ObservableObject {
                     try await SupabaseManager.shared.client.from("user_interactions").delete()
                         .eq("user_id", value: userId).eq("listing_id", value: id).eq("interaction_type", value: "favorite").execute()
                 }
-            } catch { print("Supabase Favorite Sync Error: \(error)") }
+            } catch { }
         }
     }
     
@@ -229,7 +385,7 @@ class AppState: ObservableObject {
                     try await SupabaseManager.shared.client.from("user_interactions").delete()
                         .eq("user_id", value: userId).eq("listing_id", value: id).eq("interaction_type", value: "hide").execute()
                 }
-            } catch { print("Supabase Hide Sync Error: \(error)") }
+            } catch { }
         }
     }
     
@@ -253,7 +409,7 @@ class AppState: ObservableObject {
                     try await SupabaseManager.shared.client.from("user_interactions").delete()
                         .eq("user_id", value: userId).eq("listing_id", value: id).eq("interaction_type", value: "vote").execute()
                 }
-            } catch { print("Supabase Vote Sync Error: \(error)") }
+            } catch { }
         }
     }
     
@@ -288,7 +444,6 @@ class AppState: ObservableObject {
     func autoSelectCategory(for query: String) {
         let q = query.lowercased()
         if q.isEmpty {
-            // FIX: Clearing the search query now resets the feed to All Categories
             selectedTopCategory = nil
             selectedSubCategory = nil
             return
