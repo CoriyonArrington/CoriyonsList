@@ -101,13 +101,13 @@ struct FavoritesView: View {
     @ViewBuilder
     private func renderMyListings() -> some View {
         if myListings.isEmpty {
-            VStack(spacing: Theme.Spacing.medium) {
-                Image(systemName: "tag.slash.fill").font(.system(size: 48)).foregroundColor(.gray)
-                Text("You haven't posted anything yet.")
-                    .font(Theme.Typography.body())
-                    .foregroundColor(Theme.Colors.textSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
+            EmptyStateView(
+                icon: "tag.slash.fill",
+                title: "No Posts Yet",
+                description: "You haven't posted anything yet.",
+                buttonTitle: "Post Your First Item",
+                buttonAction: { appState.selectedTab = 2 }
+            )
             .padding(.top, 100)
         } else {
             VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
@@ -153,13 +153,13 @@ struct FavoritesView: View {
         let targetIDs = getTargetIDs()
         
         if targetIDs.isEmpty {
-            VStack(spacing: Theme.Spacing.medium) {
-                Image(systemName: getEmptyIcon()).font(.system(size: 48)).foregroundColor(.gray)
-                Text("No \(statusSelection.lowercased()) items yet")
-                    .font(Theme.Typography.body())
-                    .foregroundColor(Theme.Colors.textSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
+            EmptyStateView(
+                icon: getEmptyIcon(),
+                title: getEmptyTitle(),
+                description: getEmptyDescription(),
+                buttonTitle: "Browse Trending Items",
+                buttonAction: { appState.selectedTab = 0 }
+            )
             .padding(.top, 100)
         } else {
             let filteredListings = appState.listings.filter { targetIDs.contains($0.id) }
@@ -195,6 +195,18 @@ struct FavoritesView: View {
         if statusSelection == "Favorites" { return "heart.slash" }
         if statusSelection == "Voted" { return "hand.thumbsup" }
         return "eye.slash"
+    }
+    
+    private func getEmptyTitle() -> String {
+        if statusSelection == "Favorites" { return "No favorites yet" }
+        if statusSelection == "Voted" { return "No upvotes yet" }
+        return "No hidden items"
+    }
+    
+    private func getEmptyDescription() -> String {
+        if statusSelection == "Favorites" { return "Tap the heart on items you love to save them here for later." }
+        if statusSelection == "Voted" { return "Listings you upvote to support will appear here." }
+        return "Listings you hide from your feed will appear here."
     }
     
     private func getSectionTitle() -> String {

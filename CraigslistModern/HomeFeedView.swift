@@ -18,7 +18,9 @@ struct HomeFeedView: View {
     @State private var selectedListingID: UUID?
     @State private var isDetailPresented = false
     
-    @State private var viewMode: ViewMode = .swipe
+    // Converted to AppStorage to allow cross-tab routing (e.g., from ChatView)
+    @AppStorage("homeViewMode") private var viewMode: ViewMode = .swipe
+    
     @AppStorage("isNearbyMode") private var isNearbyMode = true
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
@@ -171,18 +173,18 @@ struct HomeFeedView: View {
     @ViewBuilder
     private func emptyStateView() -> some View {
         VStack(spacing: 24) {
-            ZStack {
-                Circle().fill(Theme.Colors.primary.opacity(0.15)).frame(width: 96, height: 96)
-                Image(systemName: "magnifyingglass").font(.system(size: 48)).foregroundColor(Theme.Colors.primary)
-            }
-            VStack(spacing: 8) {
-                Text("No items nearby").font(Theme.Typography.headingM())
-                Text("We couldn't find any more items in this radius. Try adjusting your filters or explore these popular categories instead:")
-                    .font(Theme.Typography.body())
-                    .foregroundColor(Theme.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
+            EmptyStateView(
+                icon: "magnifyingglass",
+                title: appState.isShowingFallback ? "No local items" : "No items nearby",
+                description: "We couldn't find any more items in this radius. Try adjusting your filters or explore these popular categories instead:",
+                buttonTitle: appState.isShowingFallback ? "Expand Search Radius" : nil,
+                buttonAction: appState.isShowingFallback ? {
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    withAnimation { nearbyDistance = 50.0 }
+                } : nil
+            )
+            .padding(.top, 0)
             
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(emptyStateCategories, id: \.name) { cat in
@@ -218,7 +220,7 @@ struct HomeFeedView: View {
             if !trendingListings.isEmpty {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("Trending Nearby").font(.custom("Montserrat", size: 22).weight(.bold))
+                        Text(appState.isShowingFallback ? "Trending" : "Trending Nearby").font(.custom("Montserrat", size: 22).weight(.bold))
                         Spacer()
                         Text("\(trendingListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
                     }
@@ -230,7 +232,7 @@ struct HomeFeedView: View {
             if !recentListings.isEmpty {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("More Nearby").font(.custom("Montserrat", size: 22).weight(.bold))
+                        Text(appState.isShowingFallback ? "More Featured" : "More Nearby").font(.custom("Montserrat", size: 22).weight(.bold))
                         Spacer()
                         Text("\(recentListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
                     }

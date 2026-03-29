@@ -5,6 +5,9 @@ struct ChatView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var chatStore = ChatStore.shared
     
+    // Bind to the HomeFeedView's storage to force the map view open on CTA click
+    @AppStorage("homeViewMode") private var homeViewMode: ViewMode = .swipe
+    
     @State private var searchText = ""
     @State private var statusSelection = "Buying"
     
@@ -14,13 +17,8 @@ struct ChatView: View {
     var filteredInbox: [InboxThread] {
         guard let uid = appState.currentUserID else { return [] }
         let filtered = chatStore.inbox.filter { item in
-            // 1. Determine the other user's ID
             let otherUserId = (item.thread.buyerId == uid) ? item.thread.sellerId : item.thread.buyerId
-            
-            // 2. Filter by selected tab (Buying vs Selling)
             let isRelevantRole = statusSelection == "Buying" ? item.thread.buyerId == uid : item.thread.sellerId == uid
-            
-            // 3. Trust & Safety: Drop any threads from blocked users
             let isNotBlocked = !appState.blockedUserIDs.contains(otherUserId)
             
             return isRelevantRole && isNotBlocked
@@ -35,6 +33,7 @@ struct ChatView: View {
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 CraigslistPattern()
                 
+                // Set spacing to 0 for absolute control over the layout padding
                 VStack(alignment: .leading, spacing: 0) {
                     
                     // MARK: - Custom Scrollable Segmented Bar
@@ -60,13 +59,8 @@ struct ChatView: View {
                         }
                         .padding(.horizontal, Theme.Spacing.screenMargin)
                     }
-                    .padding(.top, Theme.Spacing.medium)
+                    .padding(.top, 24) // Explicit top padding to match FavoritesView ScrollView inset
                     .padding(.bottom, Theme.Spacing.large)
-                    
-                    Text("Inbox")
-                        .font(Theme.Typography.headingM())
-                        .padding(.horizontal, Theme.Spacing.screenMargin)
-                        .padding(.bottom, Theme.Spacing.medium)
                     
                     // MARK: - Inbox Content
                     if chatStore.isLoadingInbox {
@@ -75,16 +69,17 @@ struct ChatView: View {
                             .frame(maxWidth: .infinity)
                         Spacer()
                     } else if filteredInbox.isEmpty {
-                        Spacer()
-                        VStack(spacing: Theme.Spacing.medium) {
-                            Image(systemName: "bubble.left.and.bubble.right")
-                                .font(.system(size: 48))
-                                .foregroundColor(.gray)
-                            Text(statusSelection == "Buying" ? "No buying messages yet." : "No selling messages yet.")
-                                .font(Theme.Typography.body())
-                                .foregroundColor(Theme.Colors.textSecondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .center)
+                        EmptyStateView(
+                            icon: "bubble.left.and.bubble.right",
+                            title: statusSelection == "Buying" ? "No buying messages yet." : "No selling messages yet.",
+                            description: "Find an item you like and start a conversation with the seller.",
+                            buttonTitle: "Explore the Map",
+                            buttonAction: {
+                                homeViewMode = .map // Force Home Feed to Map Mode
+                                appState.selectedTab = 0 // Switch to Home Tab
+                            }
+                        )
+                        .padding(.top, 100) // Match the exact offset from FavoritesView
                         Spacer()
                     } else {
                         List {
