@@ -8,6 +8,17 @@ struct CraigslistModernApp: App {
     // 1. Initialize your global live AppState
     @StateObject private var appState = AppState()
     
+    // NEW: Global theme preference (Defaults to System)
+    @AppStorage("appTheme") private var appTheme = "System"
+    
+    var colorScheme: ColorScheme? {
+        switch appTheme {
+        case "Light": return .light
+        case "Dark": return .dark
+        default: return nil
+        }
+    }
+    
     init() {
         registerCustomFonts()
         
@@ -21,6 +32,7 @@ struct CraigslistModernApp: App {
             ContentView()
                 // 2. Inject it into the environment so all sub-views can access Supabase data
                 .environmentObject(appState)
+                .preferredColorScheme(colorScheme) // Applies the selected theme globally
         }
     }
     
@@ -34,7 +46,6 @@ struct CraigslistModernApp: App {
         
         for font in fonts {
             guard let url = Bundle.main.url(forResource: font, withExtension: "ttf") else {
-                print("⚠️ Failed to find \(font).ttf in bundle. Make sure 'Target Membership' is checked for the font file.")
                 continue
             }
             var error: Unmanaged<CFError>?
