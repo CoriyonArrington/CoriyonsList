@@ -19,36 +19,30 @@ struct HomeFeedView: View {
     
     @AppStorage("homeViewMode") private var viewMode: ViewMode = .swipe
     @AppStorage("isNearbyMode") private var isNearbyMode = true
-    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
+    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 50.0
     @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
     @AppStorage("isSwipeViewEnabled") private var isSwipeViewEnabled = true
-    
     @AppStorage("globalSearchText") private var globalSearchText = ""
+    
+    @State private var refreshTask: Task<Void, Never>? = nil
     
     let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
     
-    let emptyStateCategories: [(name: String, icon: String)] = [
-        ("For Sale", "tag.fill"),
-        ("Housing", "house.fill"),
-        ("Services", "briefcase.fill"),
-        ("Jobs", "person.2.fill")
-    ]
+    var shortLocationName: String {
+        appState.selectedLocation.components(separatedBy: ",").first ?? "your area"
+    }
     
     var baseFilteredListings: [LiveListing] {
         var results = globalSearchText.isEmpty ? appState.listings : appState.searchResults
         
-        if globalSearchText.isEmpty {
-            results = results.filter { $0.tags?.contains("home") == true }
-        }
+        let effectiveTopCat = appState.selectedTopCategory ?? (globalSearchText.isEmpty ? nil : appState.suggestedTopCategory)
         
-        if let topCat = appState.selectedTopCategory {
-            if let validSubs = appState.subCategories[topCat] {
-                results = results.filter { validSubs.contains($0.category ?? "") || $0.category == topCat }
-            }
+        if let topCat = effectiveTopCat {
+            results = results.filter { $0.category == topCat }
         }
         
         if let subCat = appState.selectedSubCategory {
-            results = results.filter { $0.category == subCat }
+            results = results.filter { $0.subCategory == subCat }
         }
         
         switch sortOption {
@@ -57,18 +51,18 @@ struct HomeFeedView: View {
         case .priceHighToLow: results.sort { $0.price > $1.price }
         case .closestFirst: break
         }
-        
         return results
     }
     
     var homeListings: [LiveListing] {
-        if !globalSearchText.isEmpty {
-            return baseFilteredListings.filter { !appState.hiddenIDs.contains($0.id) }
-        }
-        return baseFilteredListings.filter {
-            !appState.hiddenIDs.contains($0.id) &&
-            !appState.votedIDs.contains($0.id) &&
-            !appState.favoriteIDs.contains($0.id)
+        return baseFilteredListings.filter { listing in
+            // FIX: Industry Standard Marketplace Pattern.
+            // 1. Hide the user's own items from public discovery.
+            // 2. Hide items they have explicitly swiped left on / hidden.
+            let isNotOwnItem = listing.sellerId != appState.currentUserID
+            let isNotHidden = !appState.hiddenIDs.contains(listing.id)
+            
+            return isNotOwnItem && isNotHidden
         }
     }
     
@@ -86,9 +80,7 @@ struct HomeFeedView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                Color(viewMode == .map ? .black : .systemGroupedBackground)
-                    .ignoresSafeArea()
-                
+                Color(viewMode == .map ? .black : .systemGroupedBackground).ignoresSafeArea()
                 if viewMode != .map { CraigslistPattern() }
                 
                 if viewMode == .map {
@@ -103,29 +95,15 @@ struct HomeFeedView: View {
                     
                     VStack(spacing: 0) {
                         GlassHeader(searchText: $globalSearchText, placeholder: "What are you looking for?", onTapped: { appState.selectedTab = 1 })
-                        FilterAndViewBar(viewMode: $viewMode, isNearbyMode: $isNearbyMode)
-                            .padding(.top, 16)
-                        
-                        if appState.isShowingFallback && globalSearchText.isEmpty {
-                            fallbackBanner()
-                                .padding(.horizontal, Theme.Spacing.screenMargin)
-                                .padding(.top, 16)
-                        }
-                        
+                        FilterAndViewBar(viewMode: $viewMode).padding(.top, 16)
                         Spacer()
                     }
                 } else {
                     ScrollView(showsIndicators: false) {
                         ScrollViewReader { proxy in
                             VStack(alignment: .leading, spacing: 24) {
-                                FilterAndViewBar(viewMode: $viewMode, isNearbyMode: $isNearbyMode)
-                                    .padding(.top, 16)
-                                    .id("TopMarker")
-                                
-                                if appState.isShowingFallback && globalSearchText.isEmpty {
-                                    fallbackBanner()
-                                        .padding(.horizontal, Theme.Spacing.screenMargin)
-                                }
+                                FilterAndViewBar(viewMode: $viewMode)
+                                    .padding(.top, 16).id("TopMarker")
                                 
                                 if homeListings.isEmpty {
                                     emptyStateView()
@@ -137,8 +115,8 @@ struct HomeFeedView: View {
                         }
                     }
                     .refreshable {
-                        if isNearbyMode && nearbyDistance >= 50.0 { nearbyDistance = 3.0 }
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        triggerRefresh(resetFilters: false)
+                        try? await Task.sleep(nanoseconds: 500_000_000)
                     }
                     .safeAreaInset(edge: .top) {
                         GlassHeader(searchText: $globalSearchText, placeholder: "What are you looking for?", onTapped: { appState.selectedTab = 1 })
@@ -152,79 +130,73 @@ struct HomeFeedView: View {
         }
         .onAppear {
             if !isSwipeViewEnabled && viewMode == .swipe { viewMode = .gallery }
+            if nearbyDistance < 5.0 { nearbyDistance = 50.0 }
         }
-        .onChange(of: isSwipeViewEnabled) { newValue in
-            if !newValue && viewMode == .swipe { viewMode = .gallery }
-        }
+        .onChange(of: isSwipeViewEnabled) { newValue in if !newValue && viewMode == .swipe { viewMode = .gallery } }
         .onChange(of: globalSearchText) { _, newValue in
-            if !newValue.isEmpty {
-                Task { await appState.fetchSearchResults(query: newValue) }
-            }
+            if !newValue.isEmpty { Task { await appState.fetchSearchResults(query: newValue) } }
         }
+        .onChange(of: appState.savedLatitude) { _, _ in handleLocationChange() }
+        .onChange(of: appState.savedLongitude) { _, _ in handleLocationChange() }
+        .onChange(of: nearbyDistance) { _, _ in triggerRefresh(resetFilters: false) }
+        .onChange(of: isNearbyMode) { _, _ in triggerRefresh(resetFilters: false) }
     }
     
-    @ViewBuilder
-    private func fallbackBanner() -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "globe.americas.fill")
-                .foregroundColor(Theme.Colors.primary)
-                .font(.system(size: 20))
-            Text("No items found nearby. Exploring featured listings in Minneapolis.")
-                .font(Theme.Typography.caption(weight: .semibold))
-                .foregroundColor(.primary)
-            Spacer()
+    private func handleLocationChange() {
+        cameraPosition = .region(MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: appState.savedLatitude, longitude: appState.savedLongitude),
+            span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+        ))
+        triggerRefresh(resetFilters: true)
+    }
+    
+    private func triggerRefresh(resetFilters: Bool) {
+        if resetFilters {
+            appState.selectedTopCategory = nil
+            appState.selectedSubCategory = nil
+            globalSearchText = ""
         }
-        .padding(16)
-        .background(Theme.Colors.primary.opacity(0.1))
-        .cornerRadius(Theme.Radius.small)
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.small)
-                .stroke(Theme.Colors.primary.opacity(0.3), lineWidth: 1)
-        )
+        
+        refreshTask?.cancel()
+        refreshTask = Task {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            if Task.isCancelled { return }
+            
+            let fetchRadius = isNearbyMode ? (nearbyDistance > 0 ? nearbyDistance : 50.0) : 5000.0
+            await appState.fetchListings(longitude: appState.savedLongitude, latitude: appState.savedLatitude, radiusInMiles: fetchRadius)
+            await appState.fetchDashboardListings()
+            if !globalSearchText.isEmpty { await appState.fetchSearchResults(query: globalSearchText) }
+        }
     }
     
     @ViewBuilder
     private func emptyStateView() -> some View {
         VStack(spacing: 24) {
+            
+            let hasFilters = appState.selectedTopCategory != nil || appState.selectedSubCategory != nil || !globalSearchText.isEmpty
+            let canExpand = isNearbyMode && nearbyDistance < 50.0
+            
             EmptyStateView(
                 icon: "magnifyingglass",
-                title: !globalSearchText.isEmpty ? "No results for \"\(globalSearchText)\"" : (appState.isShowingFallback ? "No local items" : "No items nearby"),
-                description: !globalSearchText.isEmpty ? "Try checking your spelling or using more general terms." : "We couldn't find any more items in this radius. Try adjusting your filters or explore these popular categories instead:",
-                buttonTitle: appState.isShowingFallback && globalSearchText.isEmpty ? "Expand Search Radius" : nil,
-                buttonAction: appState.isShowingFallback && globalSearchText.isEmpty ? {
+                title: "No results found",
+                description: "We couldn't find any items matching your criteria in this area.",
+                buttonTitle: canExpand ? "Expand Search to 50 Miles" : (hasFilters ? "Clear All Filters" : nil),
+                buttonAction: {
                     let generator = UIImpactFeedbackGenerator(style: .medium)
                     generator.impactOccurred()
-                    withAnimation { nearbyDistance = 50.0 }
-                } : nil
-            )
-            .padding(.top, 0)
-            
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(emptyStateCategories, id: \.name) { cat in
-                    Button(action: {
-                        withAnimation {
-                            appState.selectedTopCategory = cat.name
+                    withAnimation {
+                        if canExpand {
+                            nearbyDistance = 50.0
+                        } else if hasFilters {
+                            appState.selectedTopCategory = nil
                             appState.selectedSubCategory = nil
-                            nearbyDistance = 25.0
+                            globalSearchText = ""
                         }
-                    }) {
-                        VStack(spacing: 8) {
-                            Image(systemName: cat.icon).font(.system(size: 24))
-                            Text(cat.name).font(Theme.Typography.body(weight: .bold))
-                        }
-                        .foregroundColor(Theme.Colors.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Theme.Colors.surfaceCard)
-                        .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
                     }
                 }
-            }
-            .padding(.horizontal, Theme.Spacing.screenMargin)
+            ).padding(.top, 40)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 40)
     }
     
     @ViewBuilder
@@ -233,11 +205,10 @@ struct HomeFeedView: View {
             if !trendingListings.isEmpty {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(appState.isShowingFallback ? "Trending" : "Trending Nearby").font(.custom("Montserrat", size: 22).weight(.bold))
+                        Text(globalSearchText.isEmpty ? "Trending" : "Top Results").font(.custom("Montserrat", size: 22).weight(.bold))
                         Spacer()
                         Text("\(trendingListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 16)
+                    }.padding(.horizontal, 16)
                     feedContent(for: viewMode, listings: trendingListings, proxy: proxy)
                 }.id("TrendingSection")
             }
@@ -245,11 +216,10 @@ struct HomeFeedView: View {
             if !recentListings.isEmpty {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(!globalSearchText.isEmpty ? "Search Results" : (appState.isShowingFallback ? "More Featured" : "More Nearby")).font(.custom("Montserrat", size: 22).weight(.bold))
+                        Text(globalSearchText.isEmpty ? "More" : "More Results").font(.custom("Montserrat", size: 22).weight(.bold))
                         Spacer()
                         Text("\(recentListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 16)
+                    }.padding(.horizontal, 16)
                     feedContent(for: viewMode, listings: recentListings, proxy: proxy)
                 }.id("RecentSection")
             }
@@ -261,26 +231,23 @@ struct HomeFeedView: View {
         if mode == .grid {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(listings, id: \.id) { listing in
-                    GridListingCard(listing: listing)
-                        .onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
+                    GridListingCard(listing: listing).onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
                 }
             }.padding(.horizontal, 16)
         } else if mode == .gallery {
             LazyVStack(spacing: 24) {
                 ForEach(listings, id: \.id) { listing in
-                    GalleryListingCard(listing: listing)
-                        .onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
+                    GalleryListingCard(listing: listing).onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
                 }
             }.padding(.horizontal, 16)
         } else if mode == .list {
             LazyVStack(spacing: 16) {
                 ForEach(listings, id: \.id) { listing in
-                    ListListingCard(listing: listing)
-                        .onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
+                    ListListingCard(listing: listing).onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
                 }
             }.padding(.horizontal, 16)
         } else if mode == .swipe {
-            SwipeFeedView(listings: listings, selectedListingID: $selectedListingID, isDetailPresented: $isDetailPresented, proxy: proxy)
+            SwipeFeedView(listings: listings, selectedListingID: $selectedListingID, isDetailPresented: $isDetailPresented, proxy: proxy, isSearch: !globalSearchText.isEmpty)
                 .frame(height: 480)
         }
     }

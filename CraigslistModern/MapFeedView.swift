@@ -28,14 +28,6 @@ struct MapFeedView: View {
                 .onChange(of: nearbyDistance) { _, newDistance in
                     updateCameraPosition(for: newDistance)
                 }
-                .onChange(of: appState.isShowingFallback) { _, isFallback in
-                    if isFallback {
-                        let fallbackCoord = CLLocationCoordinate2D(latitude: 44.9778, longitude: -93.2650)
-                        withAnimation(.easeInOut(duration: 1.2)) {
-                            cameraPosition = .region(MKCoordinateRegion(center: fallbackCoord, span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)))
-                        }
-                    }
-                }
                 .onAppear {
                     locationManager.requestLocationIfAuthorized()
                     updateCameraPosition(for: nearbyDistance)

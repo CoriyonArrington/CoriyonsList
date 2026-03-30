@@ -20,16 +20,24 @@ struct SwipeFeedView: View {
     @Binding var isDetailPresented: Bool
     
     var proxy: ScrollViewProxy? = nil
-    @State private var swipedIDs: Set<UUID> = []
+    var isSearch: Bool = false
     
+    @State private var swipedIDs: Set<UUID> = []
     @State private var actionHistory: [(UUID, SwipeAction)] = []
     @State private var undoneItems: [UUID: SwipeAction] = [:]
     
     private var displayItems: [SwipeItem] {
         var active: [LiveListing] = []
         for listing in listings {
-            if !swipedIDs.contains(listing.id) && !appState.hiddenIDs.contains(listing.id) && !appState.votedIDs.contains(listing.id) && !appState.favoriteIDs.contains(listing.id) {
-                active.append(listing)
+            // Check if the user has already interacted with this listing
+            let isHiddenOrSwiped = swipedIDs.contains(listing.id) || appState.hiddenIDs.contains(listing.id)
+            let isAlreadyInteracted = appState.votedIDs.contains(listing.id) || appState.favoriteIDs.contains(listing.id)
+            
+            // FIX: Hide already voted/favorited items from the Swipe Deck so the user gets fresh cards
+            if !isHiddenOrSwiped {
+                if isSearch || !isAlreadyInteracted {
+                    active.append(listing)
+                }
             }
         }
         
@@ -52,7 +60,6 @@ struct SwipeFeedView: View {
                 Color.clear
             } else {
                 ForEach(displayItems, id: \.id) { item in
-                    
                     let flyInOffset: CGFloat = {
                         guard let action = item.undoneAction else { return 0 }
                         return action == .hide ? -500 : 500
@@ -110,7 +117,6 @@ struct SwipeListingCard: View {
     @State private var localFavFill: Bool = false
     
     var body: some View {
-        
         let isVoted = appState.votedIDs.contains(listing.id) || localVoteFill
         let isFavorited = appState.favoriteIDs.contains(listing.id) || localFavFill
         
@@ -122,20 +128,14 @@ struct SwipeListingCard: View {
                             AsyncImage(url: url) { phase in
                                 if let image = phase.image {
                                     image.resizable().aspectRatio(contentMode: .fill)
-                                } else {
-                                    Color.clear
-                                }
+                                } else { Color.clear }
                             }
                         }
                     }
                 )
                 .clipped()
                 .overlay(
-                    LinearGradient(
-                        gradient: Gradient(colors: [.clear, .black.opacity(0.5), .black]),
-                        startPoint: UnitPoint(x: 0.5, y: 0.4),
-                        endPoint: .bottom
-                    )
+                    LinearGradient(gradient: Gradient(colors: [.clear, .black.opacity(0.5), .black]), startPoint: UnitPoint(x: 0.5, y: 0.4), endPoint: .bottom)
                 )
             
             VStack {
@@ -162,100 +162,46 @@ struct SwipeListingCard: View {
                 
                 HStack(spacing: 8) {
                     Spacer()
-                    
                     Button(action: { handleButtonTap(action: .hide) }) {
-                        Image(systemName: "eye.slash.fill")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        Image(systemName: "eye.slash.fill").font(.system(size: 20, weight: .bold)).foregroundColor(.white).frame(width: 56, height: 56).background(Color(.systemGray5)).clipShape(Circle()).shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
-                    
                     Button(action: { handleButtonTap(action: .vote) }) {
-                        Image(systemName: isVoted ? "hand.thumbsup.fill" : "hand.thumbsup")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.blue)
-                            .frame(width: 56, height: 56)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        Image(systemName: isVoted ? "hand.thumbsup.fill" : "hand.thumbsup").font(.system(size: 22, weight: .bold)).foregroundColor(.blue).frame(width: 56, height: 56).background(Color(.systemGray5)).clipShape(Circle()).shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
-                    
                     Button(action: { handleButtonTap(action: .favorite) }) {
-                        Image(systemName: isFavorited ? "heart.fill" : "heart")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.orange)
-                            .frame(width: 56, height: 56)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        Image(systemName: isFavorited ? "heart.fill" : "heart").font(.system(size: 22, weight: .bold)).foregroundColor(.orange).frame(width: 56, height: 56).background(Color(.systemGray5)).clipShape(Circle()).shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
-                    
                     ShareLink(item: URL(string: "https://coriyonslist.app/listing/\(listing.id)")!) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        Image(systemName: "square.and.arrow.up").font(.system(size: 20, weight: .bold)).foregroundColor(.white).frame(width: 56, height: 56).background(Color(.systemGray5)).clipShape(Circle()).shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
-                    
                     Button(action: onUndo) {
-                        Image(systemName: "arrow.uturn.backward")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(canUndo ? .white : Color.white.opacity(0.3))
-                            .frame(width: 56, height: 56)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+                        Image(systemName: "arrow.uturn.backward").font(.system(size: 22, weight: .bold)).foregroundColor(canUndo ? .white : Color.white.opacity(0.3)).frame(width: 56, height: 56).background(Color(.systemGray5)).clipShape(Circle()).shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
                     }
                     .disabled(!canUndo)
-                    
                     Spacer()
                 }
             }
-            .padding(16)
-            .environment(\.colorScheme, .dark)
+            .padding(16).environment(\.colorScheme, .dark)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .cornerRadius(24)
-        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-        .offset(x: offset.width, y: offset.height)
-        .rotationEffect(.degrees(Double(offset.width / 30)))
+        .frame(maxWidth: .infinity, maxHeight: .infinity).cornerRadius(24).shadow(color: .black.opacity(0.1), radius: 10, y: 5)
+        .offset(x: offset.width, y: offset.height).rotationEffect(.degrees(Double(offset.width / 30)))
         .gesture(
             DragGesture()
                 .onChanged { gesture in
                     let trans = gesture.translation
-                    if abs(trans.width) > abs(trans.height) {
-                        offset = CGSize(width: trans.width, height: 0)
-                    } else {
-                        offset = CGSize(width: 0, height: trans.height * 0.15)
-                    }
+                    if abs(trans.width) > abs(trans.height) { offset = CGSize(width: trans.width, height: 0) }
+                    else { offset = CGSize(width: 0, height: trans.height * 0.15) }
                 }
                 .onEnded { gesture in
                     let trans = gesture.translation
-                    
                     if abs(trans.width) > abs(trans.height) {
-                        if trans.width < -120 {
-                            triggerSwipe(action: .hide)
-                        } else if trans.width > 120 {
-                            localVoteFill = true
-                            triggerSwipe(action: .vote)
-                        } else {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { offset = .zero }
-                        }
+                        if trans.width < -120 { triggerSwipe(action: .hide) }
+                        else if trans.width > 120 { localVoteFill = true; triggerSwipe(action: .vote) }
+                        else { withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { offset = .zero } }
                     } else {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) { offset = .zero }
-                        
-                        if trans.height < -50 {
-                            withAnimation { proxy?.scrollTo("RecentSection", anchor: .top) }
-                        }
-                        else if trans.height > 50 {
-                            withAnimation { proxy?.scrollTo("TopMarker", anchor: .top) }
-                        }
+                        if trans.height < -50 { withAnimation { proxy?.scrollTo("RecentSection", anchor: .top) } }
+                        else if trans.height > 50 { withAnimation { proxy?.scrollTo("TopMarker", anchor: .top) } }
                     }
                 }
         )
@@ -268,9 +214,7 @@ struct SwipeListingCard: View {
         if action == .vote { localVoteFill = true }
         if action == .favorite { localFavFill = true }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            triggerSwipe(action: action)
-        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { triggerSwipe(action: action) }
     }
     
     private func triggerSwipe(action: SwipeAction) {
@@ -281,7 +225,6 @@ struct SwipeListingCard: View {
             case .favorite: offset.width = 500
             }
         }
-        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             switch action {
             case .hide: appState.toggleHidden(listing.id)
