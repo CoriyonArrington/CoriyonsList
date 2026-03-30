@@ -9,6 +9,13 @@ struct RadiusQuery: Codable {
     let radius_meters: Double
 }
 
+struct SearchQuery: Codable {
+    let user_lon: Double
+    let user_lat: Double
+    let radius_meters: Double
+    let search_term: String
+}
+
 struct UserInteraction: Codable {
     var userId: UUID
     var listingId: UUID
@@ -98,7 +105,6 @@ class AppState: ObservableObject {
         }
     }
     
-    // FIXED: Persistent Location State
     @Published var selectedLocation: String = UserDefaults.standard.string(forKey: "savedLocationName") ?? "Minneapolis, MN" {
         didSet { UserDefaults.standard.set(selectedLocation, forKey: "savedLocationName") }
     }
@@ -113,6 +119,10 @@ class AppState: ObservableObject {
     
     @Published var selectedTopCategory: String? = nil
     @Published var selectedSubCategory: String? = nil
+    
+    // NEW: Smart Server-Inferred Category Suggestions
+    @Published var suggestedTopCategory: String? = nil
+    @Published var suggestedSubCategory: String? = nil
     
     @Published var showToast: Bool = false
     @Published var toastMessage: String = ""
@@ -137,7 +147,9 @@ class AppState: ObservableObject {
 
     // MARK: - Live Data Properties
     @Published var listings: [LiveListing] = []
+    @Published var searchResults: [LiveListing] = []
     @Published var isLoading: Bool = false
+    @Published var isSearching: Bool = false
     @Published var errorMessage: String?
     
     // MARK: - Auth & Account Methods
@@ -183,7 +195,6 @@ class AppState: ObservableObject {
             await fetchUserProfile()
             await fetchBlockedUsers()
             
-            // FIXED: Dynamically fetch using persisted memory instead of hardcoded coordinates
             let initialRadius = UserDefaults.standard.double(forKey: "nearbyDistance")
             await fetchListings(longitude: savedLongitude, latitude: savedLatitude, radiusInMiles: initialRadius > 0 ? initialRadius : 50.0)
             
@@ -261,6 +272,7 @@ class AppState: ObservableObject {
                 self.currentUserProfile = nil
                 self.oauthAvatarURL = nil
                 self.listings = []
+                self.searchResults = []
                 self.favoriteIDs.removeAll()
                 self.votedIDs.removeAll()
                 self.hiddenIDs.removeAll()
@@ -345,6 +357,82 @@ class AppState: ObservableObject {
         isLoading = false
     }
     
+    func fetchSearchResults(query: String) async {
+        guard !query.isEmpty else {
+            await MainActor.run {
+                self.searchResults = []
+                self.suggestedTopCategory = nil
+                self.suggestedSubCategory = nil
+            }
+            return
+        }
+        
+        await MainActor.run { self.isSearching = true }
+        
+        let initialRadius = UserDefaults.standard.double(forKey: "nearbyDistance")
+        let radiusInMiles = initialRadius > 0 ? initialRadius : 50.0
+        let radiusInMeters = radiusInMiles * 1609.34
+        
+        let queryParams = SearchQuery(user_lon: savedLongitude, user_lat: savedLatitude, radius_meters: radiusInMeters, search_term: query)
+        
+        do {
+            let fetchedListings: [LiveListing] = try await SupabaseManager.shared.client
+                .rpc("search_listings_within_radius", params: queryParams)
+                .execute()
+                .value
+            
+            let safeListings = fetchedListings.filter { !self.blockedUserIDs.contains($0.sellerId) }
+            
+            await MainActor.run {
+                self.searchResults = safeListings
+                self.determineSuggestedCategory(from: safeListings)
+                self.isSearching = false
+            }
+        } catch {
+            await MainActor.run { self.isSearching = false }
+        }
+    }
+    
+    // NEW: Analyzes DB results to determine the most relevant category dynamically
+    private func determineSuggestedCategory(from listings: [LiveListing]) {
+        guard !listings.isEmpty else {
+            suggestedTopCategory = nil
+            suggestedSubCategory = nil
+            return
+        }
+        
+        var categoryCounts: [String: Int] = [:]
+        for listing in listings {
+            if let cat = listing.category { categoryCounts[cat, default: 0] += 1 }
+        }
+        
+        // Find the most frequent category in the search results
+        guard let dominantCat = categoryCounts.max(by: { $0.value < $1.value })?.key else {
+            suggestedTopCategory = nil
+            suggestedSubCategory = nil
+            return
+        }
+        
+        // Reverse-lookup to find if it maps to a SubCategory and TopCategory
+        for (top, subs) in subCategories {
+            if subs.contains(dominantCat) {
+                suggestedTopCategory = top
+                suggestedSubCategory = dominantCat
+                return
+            }
+        }
+        
+        // Check if it's already a TopCategory itself
+        if topCategories.contains(where: { $0.0 == dominantCat }) {
+            suggestedTopCategory = dominantCat
+            suggestedSubCategory = nil
+            return
+        }
+        
+        suggestedTopCategory = nil
+        suggestedSubCategory = nil
+    }
+    
     func fetchUserInteractions() async {
         guard let userId = currentUserID else { return }
         
@@ -388,6 +476,7 @@ class AppState: ObservableObject {
         withAnimation {
             self.blockedUserIDs.insert(userId)
             self.listings.removeAll { $0.sellerId == userId }
+            self.searchResults.removeAll { $0.sellerId == userId }
         }
         
         triggerToast(message: "User Blocked")
@@ -429,6 +518,7 @@ class AppState: ObservableObject {
         
         withAnimation {
             self.listings.removeAll { $0.id == id }
+            self.searchResults.removeAll { $0.id == id }
             self.favoriteIDs.remove(id)
             self.votedIDs.remove(id)
             self.hiddenIDs.remove(id)
@@ -533,46 +623,6 @@ class AppState: ObservableObject {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { showToast = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
             withAnimation(.easeInOut) { self.showToast = false }
-        }
-    }
-    
-    // MARK: - Search Logic
-    func getSuggestions(for query: String) -> [String] {
-        guard !query.isEmpty else { return [] }
-        let lowerQuery = query.lowercased()
-        var suggestions = Set<String>()
-        
-        for cat in topCategories.map({$0.0}) where cat.lowercased().contains(lowerQuery) { suggestions.insert(cat) }
-        for subs in subCategories.values {
-            for sub in subs where sub.lowercased().contains(lowerQuery) { suggestions.insert(sub) }
-        }
-        
-        let hoods = ["North Loop", "Uptown", "Northeast", "Downtown", "Linden Hills", "Dinkytown", "Edina", "Bloomington"]
-        for hood in hoods where hood.lowercased().contains(lowerQuery) { suggestions.insert(hood) }
-        for listing in listings where listing.title.lowercased().contains(lowerQuery) { suggestions.insert(listing.title) }
-        
-        return Array(suggestions.prefix(6)).sorted()
-    }
-    
-    func autoSelectCategory(for query: String) {
-        let q = query.lowercased()
-        if q.isEmpty {
-            selectedTopCategory = nil
-            selectedSubCategory = nil
-            return
-        }
-        if q.contains("laptop") || q.contains("tv") || q.contains("macbook") || q.contains("sony") || q.contains("electronics") {
-            selectedTopCategory = "For Sale"; selectedSubCategory = "Electronics"
-        } else if q.contains("chair") || q.contains("table") || q.contains("sofa") || q.contains("furniture") {
-            selectedTopCategory = "For Sale"; selectedSubCategory = "Furniture"
-        } else if q.contains("bike") || q.contains("trek") {
-            selectedTopCategory = "For Sale"; selectedSubCategory = "Bikes"
-        } else if q.contains("jacket") || q.contains("shirt") || q.contains("clothes") {
-            selectedTopCategory = "For Sale"; selectedSubCategory = "Clothing"
-        } else if q.contains("apartment") || q.contains("rent") || q.contains("room") {
-            selectedTopCategory = "Housing"; selectedSubCategory = "Apts / Housing"
-        } else if q.contains("developer") || q.contains("job") || q.contains("hire") {
-            selectedTopCategory = "Jobs"; selectedSubCategory = "Tech / Software"
         }
     }
 }
