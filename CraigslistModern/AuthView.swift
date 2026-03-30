@@ -13,6 +13,7 @@ struct AuthView: View {
     @State private var isAppleLoading = false
     @State private var isSignUp = false
     @State private var errorMessage: String?
+    @State private var successMessage: String?
     
     @State private var webAuthSession: WebAuthSession?
     @State private var appleNonce: String?
@@ -98,6 +99,16 @@ struct AuthView: View {
                         
                         // MARK: - Email / Password Form
                         VStack(spacing: Theme.Spacing.medium) {
+                            if let success = successMessage {
+                                Text(success)
+                                    .font(Theme.Typography.caption(weight: .semibold))
+                                    .foregroundColor(.green)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(Color.green.opacity(0.1))
+                                    .cornerRadius(8)
+                            }
+                            
                             if let error = errorMessage {
                                 Text(error)
                                     .font(Theme.Typography.caption(weight: .semibold))
@@ -140,6 +151,7 @@ struct AuthView: View {
                             withAnimation {
                                 isSignUp.toggle()
                                 errorMessage = nil
+                                successMessage = nil
                             }
                         }) {
                             Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
@@ -162,15 +174,31 @@ struct AuthView: View {
         guard !email.isEmpty, !password.isEmpty else { return }
         isLoading = true
         errorMessage = nil
+        successMessage = nil
         
         Task {
             do {
                 if isSignUp {
-                    _ = try await SupabaseManager.shared.client.auth.signUp(email: email, password: password)
+                    _ = try await SupabaseManager.shared.client.auth.signUp(
+                        email: email,
+                        password: password,
+                        redirectTo: URL(string: "com.coriyon.craigslistmodern://login-callback")
+                    )
+                    
+                    await MainActor.run {
+                        self.isLoading = false
+                        self.successMessage = "Account created! Please check your email to confirm."
+                        self.email = ""
+                        self.password = ""
+                    }
                 } else {
                     _ = try await SupabaseManager.shared.client.auth.signIn(email: email, password: password)
+                    await appState.checkAuth()
+                    
+                    await MainActor.run {
+                        self.isLoading = false
+                    }
                 }
-                await appState.checkAuth()
             } catch {
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
