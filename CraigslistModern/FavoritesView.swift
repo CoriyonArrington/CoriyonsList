@@ -8,17 +8,18 @@ struct FavoritesView: View {
     @State private var searchText = ""
     
     @State private var listingToEdit: LiveListing?
-    @State private var listingToDelete: LiveListing? // Holds context for the alert
+    @State private var listingToDelete: LiveListing?
     
     let options = ["Favorites", "My Listings", "Voted", "Hidden"]
-    
     @AppStorage("favoritesTabSelection") private var statusSelection = "Favorites"
-    
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
     
+    // FIX: Decoupled from local feed. Now pulls from the global super-array.
     var myListings: [LiveListing] {
         guard let currentUserID = appState.currentUserID else { return [] }
-        return appState.listings.filter { $0.sellerId == currentUserID }
+        return appState.allKnownListings
+            .filter { $0.sellerId == currentUserID }
+            .sorted { ($0.createdAt ?? Date()) > ($1.createdAt ?? Date()) }
     }
     
     var body: some View {
@@ -30,7 +31,6 @@ struct FavoritesView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: Theme.Spacing.large) {
                         
-                        // Custom Scrollable Segmented Bar
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: Theme.Spacing.small) {
                                 ForEach(options, id: \.self) { option in
@@ -55,7 +55,6 @@ struct FavoritesView: View {
                         }
                         .padding(.top, Theme.Spacing.medium)
                         
-                        // Content Rendering
                         if statusSelection == "My Listings" {
                             renderMyListings()
                         } else {
@@ -71,15 +70,14 @@ struct FavoritesView: View {
             }
             .sheet(isPresented: $isDetailPresented) {
                 if statusSelection == "My Listings" {
-                    ListingPagerView(listings: $appState.listings, filteredIDs: myListings.map { $0.id }, selectedListingID: $selectedListingID)
+                    ListingPagerView(listings: .constant(appState.allKnownListings), filteredIDs: myListings.map { $0.id }, selectedListingID: $selectedListingID)
                 } else {
-                    ListingPagerView(listings: $appState.listings, filteredIDs: Array(getTargetIDs()), selectedListingID: $selectedListingID)
+                    ListingPagerView(listings: .constant(appState.allKnownListings), filteredIDs: Array(getTargetIDs()), selectedListingID: $selectedListingID)
                 }
             }
             .sheet(item: $listingToEdit) { listing in
                 EditListingView(listing: listing)
             }
-            // Confirmation Alert for Grid Context Menus
             .alert("Delete Listing", isPresented: Binding(
                 get: { listingToDelete != nil },
                 set: { if !$0 { listingToDelete = nil } }
@@ -96,8 +94,6 @@ struct FavoritesView: View {
         }
     }
     
-    // MARK: - View Builders
-    
     @ViewBuilder
     private func renderMyListings() -> some View {
         if myListings.isEmpty {
@@ -111,17 +107,12 @@ struct FavoritesView: View {
             .padding(.top, 100)
         } else {
             VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-                Text("Your Posts")
-                    .font(Theme.Typography.headingM())
-                    .padding(.horizontal, Theme.Spacing.screenMargin)
+                Text("Your Posts").font(Theme.Typography.headingM()).padding(.horizontal, Theme.Spacing.screenMargin)
                 
                 if let first = myListings.first {
                     FavoriteHeroCard(listing: first)
                         .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedListingID = first.id
-                            isDetailPresented = true
-                        }
+                        .onTapGesture { selectedListingID = first.id; isDetailPresented = true }
                         .contextMenu {
                             Button { listingToEdit = first } label: { Label("Edit Post", systemImage: "pencil") }
                             Button(role: .destructive) { listingToDelete = first } label: { Label("Delete Post", systemImage: "trash") }
@@ -133,10 +124,7 @@ struct FavoritesView: View {
                     ForEach(myListings.dropFirst(), id: \.id) { listing in
                         FavoriteGridCard(listing: listing)
                             .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedListingID = listing.id
-                                isDetailPresented = true
-                            }
+                            .onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
                             .contextMenu {
                                 Button { listingToEdit = listing } label: { Label("Edit Post", systemImage: "pencil") }
                                 Button(role: .destructive) { listingToDelete = listing } label: { Label("Delete Post", systemImage: "trash") }
@@ -153,62 +141,46 @@ struct FavoritesView: View {
         let targetIDs = getTargetIDs()
         
         if targetIDs.isEmpty {
-            EmptyStateView(
-                icon: getEmptyIcon(),
-                title: getEmptyTitle(),
-                description: getEmptyDescription(),
-                buttonTitle: "Browse Trending Items",
-                buttonAction: { appState.selectedTab = 0 }
-            )
-            .padding(.top, 100)
+            EmptyStateView(icon: getEmptyIcon(), title: getEmptyTitle(), description: getEmptyDescription(), buttonTitle: "Browse Trending Items", buttonAction: { appState.selectedTab = 0 }).padding(.top, 100)
         } else {
-            let filteredListings = appState.listings.filter { targetIDs.contains($0.id) }
+            // FIX: Pulls from global known arrays
+            let filteredListings = appState.allKnownListings.filter { targetIDs.contains($0.id) }
             
-            Text(getSectionTitle())
-                .font(Theme.Typography.headingM())
-                .padding(.horizontal, Theme.Spacing.screenMargin)
+            Text(getSectionTitle()).font(Theme.Typography.headingM()).padding(.horizontal, Theme.Spacing.screenMargin)
             
             if let first = filteredListings.first {
-                FavoriteHeroCard(listing: first)
-                    .onTapGesture { selectedListingID = first.id; isDetailPresented = true }
-                    .padding(.horizontal, Theme.Spacing.screenMargin)
+                FavoriteHeroCard(listing: first).onTapGesture { selectedListingID = first.id; isDetailPresented = true }.padding(.horizontal, Theme.Spacing.screenMargin)
             }
             
             LazyVGrid(columns: columns, spacing: Theme.Spacing.medium) {
                 ForEach(filteredListings.dropFirst(), id: \.id) { listing in
-                    FavoriteGridCard(listing: listing)
-                        .onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
+                    FavoriteGridCard(listing: listing).onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
                 }
             }
             .padding(.horizontal, Theme.Spacing.screenMargin)
         }
     }
     
-    // MARK: - Logic Helpers
     private func getTargetIDs() -> Set<UUID> {
         if statusSelection == "Favorites" { return appState.favoriteIDs }
         if statusSelection == "Voted" { return appState.votedIDs }
         return appState.hiddenIDs
     }
-    
     private func getEmptyIcon() -> String {
         if statusSelection == "Favorites" { return "heart.slash" }
         if statusSelection == "Voted" { return "hand.thumbsup" }
         return "eye.slash"
     }
-    
     private func getEmptyTitle() -> String {
         if statusSelection == "Favorites" { return "No favorites yet" }
         if statusSelection == "Voted" { return "No upvotes yet" }
         return "No hidden items"
     }
-    
     private func getEmptyDescription() -> String {
         if statusSelection == "Favorites" { return "Tap the heart on items you love to save them here for later." }
         if statusSelection == "Voted" { return "Listings you upvote to support will appear here." }
         return "Listings you hide from your feed will appear here."
     }
-    
     private func getSectionTitle() -> String {
         if statusSelection == "Favorites" { return "Your Saved Items" }
         if statusSelection == "Voted" { return "Your Upvoted Items" }

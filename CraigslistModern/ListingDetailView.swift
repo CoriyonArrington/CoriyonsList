@@ -184,16 +184,20 @@ struct ListingDetailView: View {
                             CircularActionButton(icon: "xmark", action: onDismiss)
                             Spacer()
                             HStack(spacing: 12) {
-                                CircularActionButton(
-                                    icon: appState.votedIDs.contains(listing.id) ? "hand.thumbsup.fill" : "hand.thumbsup",
-                                    iconColor: .blue,
-                                    action: { handleAction { appState.toggleVoted(listing.id) } }
-                                )
-                                CircularActionButton(
-                                    icon: appState.isFavorited(listing.id) ? "heart.fill" : "heart",
-                                    iconColor: .orange,
-                                    action: { handleAction { appState.toggleFavorite(listing.id) } }
-                                )
+                                
+                                // FIX: Hide interaction buttons if the user is viewing their own item
+                                if listing.sellerId != appState.currentUserID {
+                                    CircularActionButton(
+                                        icon: appState.votedIDs.contains(listing.id) ? "hand.thumbsup.fill" : "hand.thumbsup",
+                                        iconColor: .blue,
+                                        action: { handleAction { appState.toggleVoted(listing.id) } }
+                                    )
+                                    CircularActionButton(
+                                        icon: appState.isFavorited(listing.id) ? "heart.fill" : "heart",
+                                        iconColor: .orange,
+                                        action: { handleAction { appState.toggleFavorite(listing.id) } }
+                                    )
+                                }
                                 
                                 ShareLink(
                                     item: URL(string: "https://coriyonslist.app/listing/\(listing.id)")!,
@@ -266,7 +270,6 @@ struct ListingDetailView: View {
                     
                     // MARK: - Seller Profile Info Card
                     if let seller = sellerProfile {
-                        // Instant Avatar Override for Current User in case they just logged in
                         let displayAvatar = (listing.sellerId == appState.currentUserID) ? (appState.displayAvatarURL ?? seller.avatarUrl) : seller.avatarUrl
                         
                         HStack(spacing: 16) {
@@ -307,20 +310,24 @@ struct ListingDetailView: View {
                     }
                     
                     VStack(spacing: 12) {
-                        GhostActionButton(
-                            icon: appState.votedIDs.contains(listing.id) ? "hand.thumbsup.fill" : "hand.thumbsup",
-                            title: appState.votedIDs.contains(listing.id) ? "Upvoted" : "Vote / Thumbs Up",
-                            action: { handleAction { appState.toggleVoted(listing.id) } },
-                            themeColor: .blue,
-                            isActive: appState.votedIDs.contains(listing.id)
-                        )
-                        GhostActionButton(
-                            icon: appState.isFavorited(listing.id) ? "heart.fill" : "heart",
-                            title: appState.isFavorited(listing.id) ? "Saved to Favorites" : "Save Listing",
-                            action: { handleAction { appState.toggleFavorite(listing.id) } },
-                            themeColor: .orange,
-                            isActive: appState.isFavorited(listing.id)
-                        )
+                        
+                        // FIX: Hide interaction buttons if the user is viewing their own item
+                        if listing.sellerId != appState.currentUserID {
+                            GhostActionButton(
+                                icon: appState.votedIDs.contains(listing.id) ? "hand.thumbsup.fill" : "hand.thumbsup",
+                                title: appState.votedIDs.contains(listing.id) ? "Upvoted" : "Vote / Thumbs Up",
+                                action: { handleAction { appState.toggleVoted(listing.id) } },
+                                themeColor: .blue,
+                                isActive: appState.votedIDs.contains(listing.id)
+                            )
+                            GhostActionButton(
+                                icon: appState.isFavorited(listing.id) ? "heart.fill" : "heart",
+                                title: appState.isFavorited(listing.id) ? "Saved to Favorites" : "Save Listing",
+                                action: { handleAction { appState.toggleFavorite(listing.id) } },
+                                themeColor: .orange,
+                                isActive: appState.isFavorited(listing.id)
+                            )
+                        }
                         
                         ShareLink(
                             item: URL(string: "https://coriyonslist.app/listing/\(listing.id)")!,
@@ -338,7 +345,7 @@ struct ListingDetailView: View {
                             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.3), lineWidth: 1.5)) // Dark mode fix
                         }
                         
-                        if showAllActions {
+                        if showAllActions && listing.sellerId != appState.currentUserID {
                             let isHidden = appState.hiddenIDs.contains(listing.id)
                             GhostActionButton(
                                 icon: isHidden ? "eye" : "eye.slash",
@@ -361,11 +368,13 @@ struct ListingDetailView: View {
                             )
                         }
                         
-                        Button(action: { withAnimation { showAllActions.toggle() } }) {
-                            Text(showAllActions ? "Show Less" : "Show More Options")
-                                .font(.custom("Montserrat", size: 14).weight(.semibold))
-                                .foregroundColor(.secondary)
-                                .padding(.vertical, 8)
+                        if listing.sellerId != appState.currentUserID {
+                            Button(action: { withAnimation { showAllActions.toggle() } }) {
+                                Text(showAllActions ? "Show Less" : "Show More Options")
+                                    .font(.custom("Montserrat", size: 14).weight(.semibold))
+                                    .foregroundColor(.secondary)
+                                    .padding(.vertical, 8)
+                            }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -388,7 +397,7 @@ struct ListingDetailView: View {
             
             // MARK: - Sticky Bottom Action Bar
             VStack(spacing: 12) {
-                if listing.sellerId == SupabaseManager.shared.client.auth.currentUser?.id {
+                if listing.sellerId == appState.currentUserID {
                     HStack(spacing: 16) {
                         Button(action: { showEditSheet = true }) {
                             Text("Edit Post")
@@ -500,7 +509,7 @@ struct ListingDetailView: View {
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
         appState.reportItem(targetId: listing.id, type: "listing", reason: reason)
-        appState.toggleHidden(listing.id) // Optimistically hide it from their feed locally
+        appState.toggleHidden(listing.id)
         onDismiss()
     }
     

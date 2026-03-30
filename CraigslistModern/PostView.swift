@@ -3,6 +3,7 @@ import MapKit
 import PhotosUI
 import Supabase
 
+// MARK: - Payloads & Models
 struct InsertListingPayload: Encodable {
     let id: UUID
     let sellerId: UUID
@@ -33,7 +34,6 @@ struct InsertListingPayload: Encodable {
     }
 }
 
-// 1. PRODUCTION FIX: Custom Decoder safely handles OpenAI returning either Ints or Strings for price
 struct AIListingSuggestion: Codable {
     let title: String
     let price: String
@@ -51,10 +51,9 @@ struct AIListingSuggestion: Codable {
         self.title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Suggested Listing"
         self.description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
         self.category = try container.decodeIfPresent(String.self, forKey: .category) ?? "For Sale"
-        self.subCategory = try container.decodeIfPresent(String.self, forKey: .subCategory) ?? "Other"
+        self.subCategory = try container.decodeIfPresent(String.self, forKey: .subCategory) ?? "Free"
         self.condition = try container.decodeIfPresent(String.self, forKey: .condition) ?? "Good"
         
-        // Safely parse price whether it's 100 or "100"
         if let intPrice = try? container.decodeIfPresent(Int.self, forKey: .price) {
             self.price = String(intPrice)
         } else if let strPrice = try? container.decodeIfPresent(String.self, forKey: .price) {
@@ -65,7 +64,6 @@ struct AIListingSuggestion: Codable {
     }
 }
 
-// Payload for the Edge Function
 struct AIAnalyzeRequest: Encodable {
     let image: String
 }
@@ -74,11 +72,10 @@ enum PostField: Hashable {
     case title, price, description
 }
 
+// MARK: - Post View
 struct PostView: View {
     @EnvironmentObject var appState: AppState
     
-    // MARK: - Form State
-    @State private var currentStep = 1
     @State private var title = ""
     @State private var price = ""
     @State private var itemDescription = ""
@@ -86,138 +83,349 @@ struct PostView: View {
     @State private var selectedTopCategory: String? = nil
     @State private var selectedSubCategory: String? = nil
     
-    // PhotosUI & AI State
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var selectedImages: [UIImage] = []
     
-    @State private var isScanningImage = false
-    @State private var showAIInsights = false
     @State private var isGeneratingDetails = false
     @State private var hasGeneratedDetails = false
-    
     @State private var isPublishing = false
     
-    // Overlays & Focus
     @FocusState private var focusedField: PostField?
     @State private var showLocationSheet = false
-    @State private var showPreviewDetail = false
     
     let conditions = ["New", "Like New", "Excellent", "Good", "Fair", "Salvage"]
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
-                CraigslistPattern()
-                
-                TabView(selection: $currentStep) {
-                    stepOneBasics.tag(1)
-                    stepTwoDetails.tag(2)
-                    stepThreeReview.tag(3)
+            mainContent
+                .navigationTitle("Create Post")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { toolbarContent }
+                .toolbarBackground(Color(.systemBackground).opacity(0.95), for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .safeAreaInset(edge: .bottom) { footerView }
+                .sheet(isPresented: $showLocationSheet) {
+                    LocationSelectionSheet()
+                        .presentationDetents([.medium, .large])
+                        .environmentObject(appState)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut, value: currentStep)
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Create Post").font(Theme.Typography.body(weight: .bold)).foregroundColor(.primary)
+                .overlay {
+                    if isPublishing { publishingOverlay }
                 }
-                
-                ToolbarItem(placement: .topBarTrailing) {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Step \(currentStep) of 3")
-                            .font(Theme.Typography.caption(weight: .bold))
-                            .foregroundColor(Theme.Colors.textSecondary)
-                        
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Theme.Colors.surfaceGray).frame(height: 4)
-                                Capsule()
-                                    .fill(Theme.Colors.primary)
-                                    .frame(width: geo.size.width * (CGFloat(currentStep) / 3.0), height: 4)
-                                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: currentStep)
-                            }
-                        }
-                        .frame(width: 70, height: 4)
-                    }
-                    .padding(.trailing, 8)
-                }
-                
-                ToolbarItem(placement: .topBarLeading) {
-                    if currentStep == 1 {
-                        Button("Cancel") {
-                            resetForm()
-                            appState.selectedTab = appState.previousTab
-                        }.font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.primary)
-                    } else {
-                        Button(action: { goBackStep() }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "chevron.left")
-                                Text("Back")
-                            }.font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.primary)
-                        }
-                    }
-                }
-            }
-            .toolbarBackground(Color(.systemBackground).opacity(0.95), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .safeAreaInset(edge: .bottom) { footerView }
-        }
-        // 2. PRODUCTION FIX: Presentation Modifiers attached to NavigationStack safely
-        .sheet(isPresented: $showLocationSheet) {
-            LocationSelectionSheet()
-                .presentationDetents([.medium, .large])
-                .environmentObject(appState)
-        }
-        .fullScreenCover(isPresented: $showPreviewDetail) {
-            let previewListing = LiveListing(
-                id: UUID(),
-                sellerId: appState.currentUserID ?? UUID(),
-                title: title.isEmpty ? "Untitled Listing" : title,
-                price: Int(price) ?? 0,
-                description: itemDescription.isEmpty ? "No description provided." : itemDescription,
-                category: selectedSubCategory ?? selectedTopCategory ?? "For Sale",
-                subCategory: selectedSubCategory,
-                condition: condition,
-                neighborhood: appState.selectedLocation,
-                images: generateTempPreviewURLs(),
-                tags: ["preview"],
-                createdAt: Date()
-            )
-            
-            NavigationStack {
-                ListingDetailView(
-                    listing: previewListing,
-                    allIDs: [previewListing.id],
-                    selectedListingID: .constant(previewListing.id),
-                    onDismiss: { showPreviewDetail = false },
-                    onDelete: { showPreviewDetail = false }
-                )
-            }
-            .environmentObject(appState)
         }
     }
     
+    // MARK: - Main Layout Wrappers
+    private var mainContent: some View {
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
+            CraigslistPattern()
+            
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.section) {
+                    photosSection
+                        .padding(.top, Theme.Spacing.large)
+                    
+                    detailsSection
+                    
+                    locationSection
+                    
+                    Color.clear.frame(height: 100)
+                }
+                .padding(.horizontal, Theme.Spacing.screenMargin)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+    }
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button("Cancel") {
+                resetForm()
+                appState.selectedTab = appState.previousTab
+            }
+            .font(Theme.Typography.body(weight: .bold))
+            .foregroundColor(Theme.Colors.primary)
+        }
+        
+        ToolbarItem(placement: .keyboard) {
+            HStack {
+                Spacer()
+                Button("Done") { focusedField = nil }
+                    .font(Theme.Typography.body(weight: .bold))
+                    .foregroundColor(Theme.Colors.primary)
+            }
+        }
+    }
+    
+    private var publishingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea()
+            VStack(spacing: 24) {
+                ProgressView().scaleEffect(1.5).tint(.white)
+                Text("Publishing Listing...").font(Theme.Typography.headingS()).foregroundColor(.white)
+            }
+            .padding(40)
+            .background(.ultraThinMaterial)
+            .cornerRadius(24)
+            .colorScheme(.dark)
+        }
+    }
+    
+    // MARK: - Photo Section Subcomponents
+    @ViewBuilder
+    private var photosSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+            Text("Photos").font(Theme.Typography.headingL())
+            
+            if selectedImages.isEmpty {
+                emptyPhotosPicker
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.Spacing.small) {
+                        addMorePhotosPicker
+                        
+                        ForEach(0..<selectedImages.count, id: \.self) { index in
+                            photoThumbnail(at: index)
+                        }
+                    }
+                }
+                
+                if !hasGeneratedDetails {
+                    generateDetailsButton
+                }
+            }
+        }
+        .onChange(of: selectedPhotoItems) { _, newItems in loadSelectedPhotos(from: newItems) }
+    }
+    
+    private var emptyPhotosPicker: some View {
+        PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 10, matching: .images) {
+            VStack(spacing: Theme.Spacing.medium) {
+                Image(systemName: "camera.fill").font(.system(size: 40))
+                Text("Add Photos").font(Theme.Typography.body(weight: .bold))
+            }
+            .frame(maxWidth: .infinity).frame(height: 160)
+            .background(Theme.Colors.surfaceCard).foregroundColor(Theme.Colors.primary).cornerRadius(Theme.Radius.medium)
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Theme.Colors.primary.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [6])))
+        }
+    }
+    
+    private var addMorePhotosPicker: some View {
+        PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 10, matching: .images) {
+            VStack(spacing: Theme.Spacing.small) {
+                Image(systemName: "camera.fill").font(.system(size: 28))
+                Text("Add More").font(Theme.Typography.helper(weight: .bold))
+            }
+            .frame(width: 110, height: 110).background(Theme.Colors.surfaceCard).foregroundColor(Theme.Colors.primary)
+            .cornerRadius(Theme.Radius.medium).overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Theme.Colors.primary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [5])))
+        }
+    }
+    
+    private func photoThumbnail(at index: Int) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Image(uiImage: selectedImages[index])
+                .resizable().scaledToFill()
+                .frame(width: 110, height: 110)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium))
+            
+            Button(action: { removeImage(at: index) }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.white)
+                    .background(Circle().fill(Color.black.opacity(0.6)))
+            }
+            .padding(6)
+        }
+    }
+    
+    private var generateDetailsButton: some View {
+        Button(action: generateDetailsWithOpenAI) {
+            HStack(spacing: 8) {
+                if isGeneratingDetails {
+                    ProgressView().tint(.white)
+                    Text("Analyzing Image...")
+                } else {
+                    Image(systemName: "sparkles")
+                    Text("Auto-Generate Details")
+                }
+            }
+            .font(Theme.Typography.body(weight: .bold))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(LinearGradient(colors: [Color.craigslistPurple, Color.blue], startPoint: .leading, endPoint: .trailing))
+            .cornerRadius(Theme.Radius.small)
+            .shadow(color: Color.craigslistPurple.opacity(0.3), radius: 8, x: 0, y: 4)
+        }
+        .disabled(isGeneratingDetails)
+        .padding(.top, 8)
+    }
+    
+    // MARK: - Detail Section Subcomponents
+    @ViewBuilder
+    private var detailsSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
+            Text("Details").font(Theme.Typography.headingL())
+            titleInput
+            priceInput
+            categoryInput
+            subCategoryInput
+            conditionInput
+            descriptionInput
+        }
+    }
+    
+    private var titleInput: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+            Text("TITLE").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+            TextField("e.g. Vintage Leather Sofa", text: $title)
+                .focused($focusedField, equals: .title)
+                .submitLabel(.next)
+                .onSubmit { focusedField = .price }
+                .mspInput(isFocused: focusedField == .title)
+        }
+    }
+    
+    private var priceInput: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+            Text("PRICE").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+            HStack {
+                Text("$").font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                TextField("0", text: $price)
+                    .focused($focusedField, equals: .price)
+                    .keyboardType(.numberPad)
+            }
+            .mspInput(isFocused: focusedField == .price)
+        }
+    }
+    
+    private var categoryInput: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+            Text("CATEGORY").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+            Menu {
+                ForEach(appState.topCategories, id: \.0) { cat in
+                    Button(cat.0) {
+                        selectedTopCategory = cat.0
+                        selectedSubCategory = nil
+                    }
+                }
+            } label: {
+                HStack {
+                    Text(selectedTopCategory ?? "Select a Category")
+                        .font(Theme.Typography.body())
+                        .foregroundColor(selectedTopCategory == nil ? Theme.Colors.textSecondary : .primary)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down").foregroundColor(.gray)
+                }
+                .padding(.horizontal, Theme.Spacing.medium)
+                .frame(minHeight: 56)
+                .background(Theme.Colors.inputBackground)
+                .cornerRadius(Theme.Radius.small)
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var subCategoryInput: some View {
+        if let topCat = selectedTopCategory, let validSubs = appState.subCategories[topCat] {
+            VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                Text("SUBCATEGORY").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                Menu {
+                    ForEach(validSubs, id: \.self) { sub in
+                        Button(sub) { selectedSubCategory = sub }
+                    }
+                } label: {
+                    HStack {
+                        Text(selectedSubCategory ?? "Select a Subcategory")
+                            .font(Theme.Typography.body())
+                            .foregroundColor(selectedSubCategory == nil ? Theme.Colors.textSecondary : .primary)
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down").foregroundColor(.gray)
+                    }
+                    .padding(.horizontal, Theme.Spacing.medium)
+                    .frame(minHeight: 56)
+                    .background(Theme.Colors.inputBackground)
+                    .cornerRadius(Theme.Radius.small)
+                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                }
+            }
+        }
+    }
+    
+    private var conditionInput: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+            Text("CONDITION").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+            Menu {
+                ForEach(conditions, id: \.self) { cond in
+                    Button(cond) { condition = cond }
+                }
+            } label: {
+                HStack {
+                    Text(condition).font(Theme.Typography.body()).foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down").foregroundColor(.gray)
+                }
+                .padding(.horizontal, Theme.Spacing.medium)
+                .frame(minHeight: 56)
+                .background(Theme.Colors.inputBackground)
+                .cornerRadius(Theme.Radius.small)
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+            }
+        }
+    }
+    
+    private var descriptionInput: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+            Text("DESCRIPTION").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+            TextEditor(text: $itemDescription)
+                .focused($focusedField, equals: .description)
+                .scrollContentBackground(.hidden)
+                .font(Theme.Typography.body())
+                .frame(height: 140)
+                .padding(8)
+                .background(Theme.Colors.inputBackground)
+                .cornerRadius(Theme.Radius.small)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.Radius.small)
+                        .stroke(focusedField == .description ? Theme.Colors.actionPrimary : Color.primary.opacity(0.1), lineWidth: focusedField == .description ? 2 : 1)
+                )
+        }
+    }
+    
+    // MARK: - Location & Footer Subcomponents
+    @ViewBuilder
+    private var locationSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+            Text("Location").font(Theme.Typography.headingL())
+            
+            HStack {
+                Image(systemName: "location.fill").foregroundColor(Theme.Colors.primary).font(.system(size: 18))
+                Text(appState.selectedLocation).font(Theme.Typography.body(weight: .bold)).foregroundColor(.primary)
+                Spacer()
+                Button(action: { showLocationSheet = true }) {
+                    Text("Edit").font(Theme.Typography.caption(weight: .bold)).foregroundColor(Theme.Colors.actionPrimary)
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.medium)
+            .frame(minHeight: 56)
+            .background(Theme.Colors.inputBackground)
+            .cornerRadius(Theme.Radius.small)
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+        }
+    }
+    
+    @ViewBuilder
     private var footerView: some View {
         VStack(spacing: 0) {
             Divider().opacity(0.3)
             VStack {
-                Button(action: {
-                    if currentStep < 3 { advanceStep() }
-                    else { publishListing() }
-                }) {
-                    if isPublishing {
-                        HStack(spacing: 8) {
-                            ProgressView().tint(.white)
-                            Text("Publishing...")
-                        }
-                    } else {
-                        Text(currentStep < 3 ? "Next" : "Post")
-                    }
+                Button(action: publishListing) {
+                    Text("Publish Listing")
                 }
-                .buttonStyle(MSPPrimaryButtonStyle(isEnabled: canProceed && !isPublishing))
-                .disabled(!canProceed || isPublishing)
+                .buttonStyle(MSPPrimaryButtonStyle(isEnabled: canProceed))
+                .disabled(!canProceed)
                 .padding(.horizontal, Theme.Spacing.screenMargin)
                 .padding(.top, Theme.Spacing.medium)
                 .padding(.bottom, Theme.Spacing.medium)
@@ -226,216 +434,29 @@ struct PostView: View {
         }
     }
     
-    private var stepOneBasics: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.section) {
-                Text("What are you selling?").font(Theme.Typography.headingL()).padding(.top, Theme.Spacing.large)
-                
-                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-                    if selectedImages.isEmpty {
-                        PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 10, matching: .images) {
-                            VStack(spacing: Theme.Spacing.medium) {
-                                Image(systemName: "camera.fill").font(.system(size: 40))
-                                Text("Add Photos").font(Theme.Typography.body(weight: .bold))
-                            }
-                            .frame(maxWidth: .infinity).frame(height: 160)
-                            .background(Theme.Colors.surfaceCard).foregroundColor(Theme.Colors.primary).cornerRadius(Theme.Radius.medium)
-                            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Theme.Colors.primary.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [6])))
-                        }
-                    } else {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: Theme.Spacing.small) {
-                                PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 10, matching: .images) {
-                                    VStack(spacing: Theme.Spacing.small) {
-                                        Image(systemName: "camera.fill").font(.system(size: 28))
-                                        Text("Add More").font(Theme.Typography.helper(weight: .bold))
-                                    }
-                                    .frame(width: 110, height: 110).background(Theme.Colors.surfaceCard).foregroundColor(Theme.Colors.primary)
-                                    .cornerRadius(Theme.Radius.medium).overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Theme.Colors.primary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [5])))
-                                }
-                                ForEach(selectedImages, id: \.self) { image in
-                                    Image(uiImage: image).resizable().scaledToFill().frame(width: 110, height: 110).clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium))
-                                }
-                            }
-                        }
-                    }
-                    
-                    if isScanningImage {
-                        HStack(spacing: Theme.Spacing.small) {
-                            ProgressView().tint(Theme.Colors.primary)
-                            Text("Analyzing image with AI...").font(Theme.Typography.caption(weight: .semibold)).foregroundColor(Theme.Colors.textSecondary)
-                        }.padding(.top, Theme.Spacing.small).transition(.opacity)
-                    } else if showAIInsights {
-                        VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
-                            HStack { Image(systemName: "sparkles"); Text("AI Insights Applied").font(Theme.Typography.caption(weight: .bold)) }.foregroundColor(Theme.Colors.primary)
-                            Text("We've auto-populated the fields below based on your image. Feel free to adjust them!").font(Theme.Typography.caption()).foregroundColor(.primary)
-                        }
-                        .padding(Theme.Spacing.large).background(Theme.Colors.surfaceCard).cornerRadius(Theme.Radius.medium)
-                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium).stroke(Theme.Colors.primary.opacity(0.2), lineWidth: 1))
-                        .padding(.top, Theme.Spacing.small).transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                }
-                .onChange(of: selectedPhotoItems) { _, newItems in loadSelectedPhotos(from: newItems) }
-                
-                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-                    Text("TITLE").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                    TextField("e.g. Vintage Leather Sofa", text: $title)
-                        .focused($focusedField, equals: .title)
-                        .submitLabel(.next)
-                        .onSubmit { focusedField = .price }
-                        .mspInput(isFocused: focusedField == .title)
-                }
-                
-                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-                    Text("PRICE").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                    HStack {
-                        Text("$").font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                        TextField("0", text: $price)
-                            .focused($focusedField, equals: .price)
-                            .keyboardType(.numberPad)
-                    }.mspInput(isFocused: focusedField == .price)
-                }
-            }
-            .padding(.horizontal, Theme.Spacing.screenMargin).padding(.bottom, Theme.Spacing.section)
+    private var canProceed: Bool {
+        !selectedImages.isEmpty && !title.isEmpty && !price.isEmpty && selectedTopCategory != nil && !isPublishing
+    }
+    
+    // MARK: - Actions
+    private func removeImage(at index: Int) {
+        withAnimation {
+            _ = selectedImages.remove(at: index)
         }
-        .scrollDismissesKeyboard(.interactively)
     }
-    
-    private var stepTwoDetails: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.section) {
-                Text("Add some details").font(Theme.Typography.headingL()).padding(.top, Theme.Spacing.large)
-                
-                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-                    Text("CONDITION").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: Theme.Spacing.small) {
-                            ForEach(conditions, id: \.self) { cond in
-                                Button(action: {
-                                    let generator = UIImpactFeedbackGenerator(style: .light)
-                                    generator.impactOccurred()
-                                    condition = cond
-                                }) {
-                                    Text(cond).font(Theme.Typography.caption(weight: condition == cond ? .bold : .semibold)).frame(minHeight: 44).padding(.horizontal, Theme.Spacing.medium)
-                                        .background(condition == cond ? Theme.Colors.primary : Theme.Colors.surfaceCard)
-                                        .foregroundColor(condition == cond ? Color(.systemBackground) : .primary)
-                                        .clipShape(Capsule()).overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-                    HStack {
-                        Text("DESCRIPTION").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                        Spacer()
-                        if showAIInsights {
-                            HStack(spacing: 4) { Image(systemName: "sparkles"); Text("AI Generated").font(Theme.Typography.helper(weight: .bold)) }.foregroundColor(Theme.Colors.primary)
-                        }
-                    }
-                    TextEditor(text: $itemDescription)
-                        .focused($focusedField, equals: .description)
-                        .scrollContentBackground(.hidden).font(Theme.Typography.body())
-                        .frame(height: 140).padding(8).background(Theme.Colors.inputBackground).cornerRadius(Theme.Radius.small)
-                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small).stroke(focusedField == .description ? Theme.Colors.actionPrimary : Color.primary.opacity(0.1), lineWidth: focusedField == .description ? 2 : 1))
-                }
-            }
-            .padding(.horizontal, Theme.Spacing.screenMargin).padding(.bottom, Theme.Spacing.section)
-        }
-        .scrollDismissesKeyboard(.interactively)
-    }
-    
-    private var stepThreeReview: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.section) {
-                Text("Review & Post").font(Theme.Typography.headingL()).padding(.top, Theme.Spacing.large)
-                
-                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-                    Text("MEETUP LOCATION").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                    HStack {
-                        Image(systemName: "location.fill").foregroundColor(Theme.Colors.primary).font(.system(size: 18))
-                        Text(appState.selectedLocation).font(Theme.Typography.body(weight: .bold)).foregroundColor(.primary)
-                        Spacer()
-                        
-                        Button(action: { showLocationSheet = true }) {
-                            Text("Edit").font(Theme.Typography.caption(weight: .bold)).foregroundColor(Theme.Colors.actionPrimary)
-                        }
-                    }
-                    .padding(.horizontal, Theme.Spacing.medium)
-                    .frame(minHeight: 56)
-                    .background(Theme.Colors.inputBackground)
-                    .cornerRadius(Theme.Radius.small)
-                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small).stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                }
-                
-                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
-                    Text("LISTING PREVIEW").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                    
-                    Button(action: { showPreviewDetail = true }) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            if let firstImg = selectedImages.first {
-                                Image(uiImage: firstImg)
-                                    .resizable().scaledToFill().frame(height: 200).clipped()
-                            } else {
-                                Color(.systemGray4).frame(height: 200)
-                                    .overlay(Image(systemName: "photo").font(.system(size: 40)).foregroundColor(.gray))
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(alignment: .top) {
-                                    Text(title.isEmpty ? "Untitled Listing" : title)
-                                        .font(.custom("Montserrat", size: 21).weight(.bold)).foregroundColor(.primary).lineLimit(1)
-                                    Spacer()
-                                    Text("$\(price.isEmpty ? "0" : price)")
-                                        .font(.custom("Montserrat", size: 21).weight(.heavy)).foregroundColor(Theme.Colors.success)
-                                }
-                                
-                                HStack(alignment: .center, spacing: 6) {
-                                    Text(selectedSubCategory ?? selectedTopCategory ?? "For Sale").font(.custom("NunitoSans", size: 14).weight(.bold)).foregroundColor(.secondary).lineLimit(1)
-                                    Text("•").foregroundColor(.gray)
-                                    Text(condition).font(.custom("NunitoSans", size: 14).weight(.bold)).foregroundColor(.secondary)
-                                    Spacer()
-                                }
-                            }
-                            .padding(16)
-                            .background(Color(.secondarySystemGroupedBackground))
-                        }
-                        .cornerRadius(16)
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }.padding(.horizontal, Theme.Spacing.screenMargin)
-        }
-        .scrollDismissesKeyboard(.interactively)
-    }
-    
-    private var canProceed: Bool { currentStep == 1 ? (!title.isEmpty && !price.isEmpty) : true }
-    
-    private func advanceStep() {
-        withAnimation { currentStep += 1 }
-    }
-    
-    private func goBackStep() { withAnimation { currentStep -= 1 } }
     
     private func loadSelectedPhotos(from items: [PhotosPickerItem]) {
         Task {
             var newImages: [UIImage] = []
             for item in items { if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) { newImages.append(image) } }
-            DispatchQueue.main.async {
-                self.selectedImages = newImages
-                
-                if !self.selectedImages.isEmpty && !self.showAIInsights {
-                    self.analyzeImageWithAI(image: self.selectedImages.first!)
-                }
-            }
+            await MainActor.run { self.selectedImages.append(contentsOf: newImages) }
         }
     }
     
-    // 3. PRODUCTION FIX: Using the Native Supabase SDK with our safe generic decoder
-    private func analyzeImageWithAI(image: UIImage) {
+    private func generateDetailsWithOpenAI() {
+        guard let image = selectedImages.first else { return }
+        isGeneratingDetails = true
+        
         let maxWidth: CGFloat = 800
         let scale = maxWidth / image.size.width
         let newHeight = image.size.height * scale
@@ -446,54 +467,72 @@ struct PostView: View {
         UIGraphicsEndImageContext()
         
         let finalImage = resizedImage ?? image
-        guard let imageData = finalImage.jpegData(compressionQuality: 0.6) else { return }
+        guard let imageData = finalImage.jpegData(compressionQuality: 0.6) else {
+            isGeneratingDetails = false
+            return
+        }
               
         let base64Image = imageData.base64EncodedString()
-        
-        isScanningImage = true
+        let requestPayload = AIAnalyzeRequest(image: base64Image)
         
         Task {
-            defer {
-                Task { @MainActor in
-                    self.isScanningImage = false
-                }
-            }
-            
             do {
-                let requestPayload = AIAnalyzeRequest(image: base64Image)
-                
                 let suggestion: AIListingSuggestion = try await SupabaseManager.shared.client.functions.invoke(
                     "analyze-listing",
                     options: FunctionInvokeOptions(body: requestPayload)
                 )
                 
                 await MainActor.run {
-                    withAnimation {
-                        self.title = suggestion.title
-                        self.price = suggestion.price
-                        self.itemDescription = suggestion.description
-                        self.selectedTopCategory = suggestion.category
-                        self.selectedSubCategory = suggestion.subCategory
-                        self.condition = suggestion.condition
-                        self.showAIInsights = true
-                    }
+                    populateAIFields(with: suggestion)
+                    isGeneratingDetails = false
+                    hasGeneratedDetails = true
                 }
-                
             } catch {
+                await MainActor.run {
+                    appState.triggerToast(message: "AI Analysis failed. Please enter details manually.")
+                    isGeneratingDetails = false
+                }
             }
         }
     }
     
-    private func generateTempPreviewURLs() -> [String] {
-        var urls: [String] = []
-        for image in selectedImages {
-            if let data = image.jpegData(compressionQuality: 0.8) {
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
-                try? data.write(to: url); urls.append(url.absoluteString)
+    private func populateAIFields(with data: AIListingSuggestion) {
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            title = data.title
+            price = data.price
+            itemDescription = data.description
+            
+            var matchedTop: String? = nil
+            var matchedSub: String? = nil
+            
+            if appState.topCategories.contains(where: { $0.0 == data.category }) {
+                matchedTop = data.category
+            }
+            
+            for (top, subs) in appState.subCategories {
+                if subs.contains(data.category) {
+                    matchedTop = top
+                    matchedSub = data.category
+                }
+                if subs.contains(data.subCategory) {
+                    matchedTop = top
+                    matchedSub = data.subCategory
+                }
+            }
+            
+            selectedTopCategory = matchedTop
+            selectedSubCategory = matchedSub
+            
+            let validConditions = ["New", "Like New", "Excellent", "Good", "Fair", "Salvage"]
+            if validConditions.contains(data.condition) {
+                condition = data.condition
+            } else {
+                condition = "Good"
             }
         }
-        if urls.isEmpty { urls.append("https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?q=80&w=800") }
-        return urls
     }
     
     private func uploadImagesToSupabase() async throws -> [String] {
@@ -538,12 +577,12 @@ struct PostView: View {
                     title: title.isEmpty ? "Untitled Listing" : title,
                     price: Int(price) ?? 0,
                     description: itemDescription.isEmpty ? nil : itemDescription,
-                    category: selectedSubCategory ?? selectedTopCategory ?? "For Sale",
+                    category: selectedTopCategory ?? "For Sale",
                     subCategory: selectedSubCategory,
                     condition: condition,
                     neighborhood: appState.selectedLocation,
                     images: finalImageURLs,
-                    tags: ["home", "search"],
+                    tags: ["home", "search", selectedTopCategory ?? "", selectedSubCategory ?? ""].filter { !$0.isEmpty },
                     createdAt: Date()
                 )
                 
@@ -557,7 +596,8 @@ struct PostView: View {
                     subCategory: newListing.subCategory,
                     condition: newListing.condition,
                     neighborhood: newListing.neighborhood,
-                    location: "POINT(-93.2650 44.9778)",
+                    // FIX: Explicitly assigning the SRID to ensure perfect PostGIS mapping
+                    location: "SRID=4326;POINT(\(appState.savedLongitude) \(appState.savedLatitude))",
                     images: newListing.images,
                     tags: newListing.tags
                 )
@@ -584,7 +624,6 @@ struct PostView: View {
     }
     
     private func resetForm() {
-        currentStep = 1
         title = ""
         price = ""
         itemDescription = ""
@@ -593,8 +632,6 @@ struct PostView: View {
         selectedSubCategory = nil
         selectedPhotoItems.removeAll()
         selectedImages.removeAll()
-        isScanningImage = false
-        showAIInsights = false
         isGeneratingDetails = false
         hasGeneratedDetails = false
         focusedField = nil
