@@ -260,7 +260,7 @@ struct GlassHeader: View {
     
     var onTapped: () -> Void = {}
     var onCancel: (() -> Void)? = nil
-    var onSubmit: (() -> Void)? = nil // NEW: Natively supports keyboard submission
+    var onSubmit: (() -> Void)? = nil
     
     @State private var showLocationSheet = false
     @State private var showAccountSheet = false
@@ -318,7 +318,6 @@ struct GlassHeader: View {
                     Image(systemName: "magnifyingglass").font(.system(size: 18)).foregroundColor(Theme.Colors.textSecondary)
                     
                     if autoFocus {
-                        // FIX: Removed client-side autoSelectCategory guessing logic and added onSubmit
                         TextField(placeholder, text: $searchText)
                             .focused($isFocused)
                             .font(Theme.Typography.body())
@@ -327,7 +326,6 @@ struct GlassHeader: View {
                                 onSubmit?()
                             }
                     } else {
-                        // FIX: Displays actual text on the home feed instead of always showing the placeholder
                         Text(searchText.isEmpty ? placeholder : searchText)
                             .font(Theme.Typography.body())
                             .foregroundColor(searchText.isEmpty ? Theme.Colors.textSecondary : .primary)
@@ -336,9 +334,14 @@ struct GlassHeader: View {
                     
                     if !searchText.isEmpty {
                         Button(action: {
+                            let generator = UIImpactFeedbackGenerator(style: .light)
+                            generator.impactOccurred()
                             searchText = ""
+                            
+                            appState.suggestedTopCategory = nil
+                            appState.suggestedSubCategory = nil
                         }) {
-                            Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
+                            Image(systemName: "xmark.circle.fill").foregroundColor(.gray).padding(4)
                         }
                     }
                 }
@@ -391,55 +394,80 @@ struct GlassHeader: View {
     }
 }
 
+// MARK: - Filter And View Bar (Action Bar)
 struct FilterAndViewBar: View {
     @EnvironmentObject var appState: AppState
     @Binding var viewMode: ViewMode
-    @Binding var isNearbyMode: Bool
     
-    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
+    @AppStorage("globalSearchText") private var globalSearchText = ""
     
     @State private var showFilterSheet = false
     @State private var showViewSheet = false
-    @State private var showLocationSheet = false
     @State private var showSortSheet = false
     
+    var effectiveTopCat: String? {
+        appState.selectedTopCategory ?? (globalSearchText.isEmpty ? nil : appState.suggestedTopCategory)
+    }
+    
     var currentCategoryIcon: String {
-        if let cat = appState.selectedTopCategory, let match = appState.topCategories.first(where: { $0.0 == cat }) { return match.1 }
+        if let cat = effectiveTopCat, let match = appState.topCategories.first(where: { $0.0 == cat }) { return match.1 }
         return "slider.horizontal.3"
     }
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Spacing.small) {
+                
+                // FIX: "Nearby" Action pill completely removed per Hick's Law cleanup.
+                
+                // 1. Unified Category Button
+                let activeLabel = appState.selectedSubCategory ?? effectiveTopCat ?? "All Categories"
+                let isCatActive = effectiveTopCat != nil || appState.selectedSubCategory != nil
+                
                 Button(action: { showFilterSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: currentCategoryIcon)
-                        Text(appState.selectedTopCategory ?? "All Categories").fixedSize()
+                        Text(activeLabel).fixedSize()
                         Image(systemName: "chevron.down")
                     }
                     .font(Theme.Typography.caption(weight: .bold))
                     .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
-                    .background(appState.selectedTopCategory != nil ? Theme.Colors.primary : Color.primary)
-                    .cornerRadius(Theme.Radius.small)
-                    .foregroundColor(Color(.systemBackground))
+                    .background(isCatActive ? Theme.Colors.primary : Color.primary, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
+                    .foregroundColor(isCatActive ? .white : Color(.systemBackground))
                 }
                 .sheet(isPresented: $showFilterSheet) { FilterSelectionSheet().presentationDetents([.medium, .large]) }
                 
-                Button(action: { showLocationSheet = true }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: isNearbyMode ? "location.fill" : "location")
-                        Text(isNearbyMode ? "Nearby (\(Int(nearbyDistance))mi)" : "Nearby").fixedSize()
-                        Image(systemName: "chevron.down")
+                // 2. Subcategory Menu Dropdown
+                if let topCat = effectiveTopCat, let validSubs = appState.subCategories[topCat] {
+                    let isSubActive = appState.selectedSubCategory != nil
+                    Menu {
+                        Button("All \(topCat)") {
+                            let generator = UIImpactFeedbackGenerator(style: .light)
+                            generator.impactOccurred()
+                            appState.selectedSubCategory = nil
+                        }
+                        ForEach(validSubs, id: \.self) { sub in
+                            Button(sub) {
+                                let generator = UIImpactFeedbackGenerator(style: .light)
+                                generator.impactOccurred()
+                                appState.selectedSubCategory = sub
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(appState.selectedSubCategory ?? "All \(topCat)").fixedSize()
+                            Image(systemName: "chevron.down")
+                        }
+                        .font(Theme.Typography.caption(weight: .bold))
+                        .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
+                        .background(isSubActive ? Theme.Colors.primary : Color.primary, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
+                        .foregroundColor(isSubActive ? .white : Color(.systemBackground))
                     }
-                    .font(Theme.Typography.caption(weight: .bold))
-                    .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
-                    .background(isNearbyMode ? Color.primary : Theme.Colors.surfaceCard)
-                    .cornerRadius(Theme.Radius.small)
-                    .foregroundColor(isNearbyMode ? Color(.systemBackground) : .primary)
                 }
-                .sheet(isPresented: $showLocationSheet) { LocationSelectionSheet().presentationDetents([.medium, .large]) }
                 
+                // 3. Sort Button
+                let isSortActive = sortOption != .bestMatch
                 Button(action: { showSortSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: sortOption.icon)
@@ -448,12 +476,12 @@ struct FilterAndViewBar: View {
                     }
                     .font(Theme.Typography.caption(weight: .bold))
                     .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
-                    .background(Color.primary)
-                    .cornerRadius(Theme.Radius.small)
-                    .foregroundColor(Color(.systemBackground))
+                    .background(isSortActive ? Theme.Colors.primary : Color.primary, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
+                    .foregroundColor(isSortActive ? .white : Color(.systemBackground))
                 }
                 .sheet(isPresented: $showSortSheet) { SortSelectionSheet(sortOption: $sortOption).presentationDetents([.height(350)]) }
                 
+                // 4. View Mode Button
                 Button(action: { showViewSheet = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: viewMode.icon)
@@ -462,8 +490,7 @@ struct FilterAndViewBar: View {
                     }
                     .font(Theme.Typography.caption(weight: .bold))
                     .padding(.horizontal, Theme.Spacing.medium).padding(.vertical, 10)
-                    .background(Color.primary)
-                    .cornerRadius(Theme.Radius.small)
+                    .background(Color.primary, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
                     .foregroundColor(Color(.systemBackground))
                 }
                 .sheet(isPresented: $showViewSheet) { ViewSelectionSheet(viewMode: $viewMode).presentationDetents([.height(350)]) }
@@ -474,6 +501,241 @@ struct FilterAndViewBar: View {
 }
 
 // MARK: - Sheets & Dropdowns
+
+struct RecentLocation: Codable, Hashable, Identifiable {
+    var id: String { city }
+    let city: String
+    let lat: Double
+    let lon: Double
+}
+
+struct LocationSelectionSheet: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var appState: AppState
+    
+    @StateObject private var locationManager = LocationManager()
+    @StateObject private var searchService = LocationSearchService()
+    
+    @AppStorage("isNearbyMode") private var isNearbyMode = true
+    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 50.0
+    @AppStorage("recentLocationsData") private var recentLocationsData: Data = Data()
+    
+    @State private var isGeocoding: Bool = false
+    let radii = [5, 10, 25, 50]
+    
+    var recentLocations: [RecentLocation] {
+        if let decoded = try? JSONDecoder().decode([RecentLocation].self, from: recentLocationsData) {
+            return decoded
+        }
+        return []
+    }
+    
+    func addRecentLocation(city: String, lat: Double, lon: Double) {
+        var recents = recentLocations
+        recents.removeAll { $0.city == city }
+        recents.insert(RecentLocation(city: city, lat: lat, lon: lon), at: 0)
+        if recents.count > 5 { recents.removeLast() }
+        if let encoded = try? JSONEncoder().encode(recents) {
+            recentLocationsData = encoded
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Location").font(Theme.Typography.headingM())
+                    Spacer()
+                    Button("Done") { dismiss() }.font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.primary)
+                }
+                .padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, 24).padding(.bottom, 12)
+            }
+            
+            ScrollView(showsIndicators: false) {
+                // FIX: Master VStack spacing tightly governs exactly 32pts between every logical block
+                VStack(alignment: .leading, spacing: 32) {
+                    
+                    // 1. Manual Location Search
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "magnifyingglass").foregroundColor(Theme.Colors.textSecondary)
+                            TextField("Search city, state, or zip...", text: $searchService.searchQuery)
+                                .font(Theme.Typography.body())
+                                .disableAutocorrection(true)
+                            
+                            if isGeocoding {
+                                ProgressView().scaleEffect(0.8)
+                            } else if !searchService.searchQuery.isEmpty {
+                                Button(action: { searchService.searchQuery = "" }) {
+                                    Image(systemName: "xmark.circle.fill").foregroundColor(Theme.Colors.textSecondary)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Theme.Colors.surfaceGray)
+                        .cornerRadius(Theme.Radius.small)
+                    }
+                    .padding(.horizontal, Theme.Spacing.screenMargin)
+                    
+                    // Auto-complete suggestions
+                    if !searchService.completions.isEmpty {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("SUGGESTIONS").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary).padding(.horizontal, Theme.Spacing.screenMargin).padding(.bottom, 8)
+                            
+                            ForEach(searchService.completions, id: \.self) { completion in
+                                Button(action: { selectCompletion(completion) }) {
+                                    HStack {
+                                        Image(systemName: "mappin.and.ellipse").foregroundColor(Theme.Colors.textSecondary)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(completion.title).font(Theme.Typography.body()).foregroundColor(.primary)
+                                            if !completion.subtitle.isEmpty {
+                                                Text(completion.subtitle).font(Theme.Typography.caption()).foregroundColor(Theme.Colors.textSecondary)
+                                            }
+                                        }
+                                        Spacer()
+                                    }
+                                    .padding(.vertical, 14).padding(.horizontal, Theme.Spacing.screenMargin)
+                                }
+                                Divider().padding(.leading, 48)
+                            }
+                        }
+                    } else if searchService.searchQuery.isEmpty {
+                        
+                        // 2. Magical Nearby Mode (Native Toggle)
+                        VStack(alignment: .leading, spacing: 16) {
+                            Toggle(isOn: Binding(
+                                get: { isNearbyMode },
+                                set: { newValue in
+                                    withAnimation {
+                                        isNearbyMode = newValue
+                                        if newValue && nearbyDistance >= 50 {
+                                            nearbyDistance = 25.0
+                                        }
+                                    }
+                                }
+                            )) {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle().fill(Theme.Colors.primary.opacity(0.1)).frame(width: 36, height: 36)
+                                        Image(systemName: "sparkles").foregroundColor(Theme.Colors.primary)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Prioritize Nearby Deals").font(Theme.Typography.body(weight: .bold)).foregroundColor(.primary)
+                                        Text("Show local items before distant ones").font(Theme.Typography.caption()).foregroundColor(Theme.Colors.textSecondary)
+                                    }
+                                }
+                            }
+                            .tint(Theme.Colors.primary)
+                            .padding(.horizontal, Theme.Spacing.screenMargin)
+                            
+                            if isNearbyMode {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("SEARCH RADIUS").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary).padding(.horizontal, Theme.Spacing.screenMargin)
+                                    HStack(spacing: 8) {
+                                        ForEach(radii, id: \.self) { radius in
+                                            Button(action: {
+                                                withAnimation { nearbyDistance = Double(radius) }
+                                            }) {
+                                                Text("\(radius) mi")
+                                                    .font(Theme.Typography.caption(weight: .semibold))
+                                                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                                    .background(Int(nearbyDistance) == radius ? Theme.Colors.primary : Color.primary, in: Capsule())
+                                                    .foregroundColor(Int(nearbyDistance) == radius ? .white : Color(.systemBackground))
+                                            }
+                                        }
+                                    }.padding(.horizontal, Theme.Spacing.screenMargin)
+                                }
+                            }
+                        }
+                        
+                        // 3. Current Location & Recents List
+                        VStack(alignment: .leading, spacing: 0) {
+                            Button(action: { locationManager.requestLocation() }) {
+                                HStack(spacing: 16) {
+                                    Image(systemName: "location.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(Theme.Colors.primary)
+                                        .frame(width: 24)
+                                    
+                                    if locationManager.isRequesting {
+                                        Text("Locating...").font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary)
+                                        Spacer()
+                                        ProgressView()
+                                    } else {
+                                        Text("Use Current Location").font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary)
+                                        Spacer()
+                                    }
+                                }
+                                .padding(.vertical, 14)
+                                .padding(.horizontal, Theme.Spacing.screenMargin)
+                            }
+                            
+                            Divider().padding(.leading, Theme.Spacing.screenMargin + 40)
+                            
+                            if !recentLocations.isEmpty {
+                                ForEach(recentLocations) { loc in
+                                    Button(action: {
+                                        updateLocationAndFetch(city: loc.city, coordinate: CLLocationCoordinate2D(latitude: loc.lat, longitude: loc.lon))
+                                    }) {
+                                        HStack(spacing: 16) {
+                                            Image(systemName: "clock")
+                                                .font(.system(size: 20))
+                                                .foregroundColor(Theme.Colors.textSecondary)
+                                                .frame(width: 24)
+                                            Text(loc.city).font(Theme.Typography.body()).foregroundColor(.primary)
+                                            Spacer()
+                                        }
+                                        .padding(.vertical, 14).padding(.horizontal, Theme.Spacing.screenMargin)
+                                    }
+                                    Divider().padding(.leading, Theme.Spacing.screenMargin + 40)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 40)
+            }
+        }
+        .background(Color(.systemBackground))
+        .onChange(of: locationManager.cityNeighborhood) { _, newValue in
+            if let city = newValue, let coord = locationManager.location?.coordinate {
+                updateLocationAndFetch(city: city, coordinate: coord)
+            }
+        }
+    }
+    
+    private func selectCompletion(_ completion: MKLocalSearchCompletion) {
+        isGeocoding = true
+        let searchRequest = MKLocalSearch.Request(completion: completion)
+        let search = MKLocalSearch(request: searchRequest)
+        
+        search.start { response, error in
+            DispatchQueue.main.async {
+                isGeocoding = false
+                if let coordinate = response?.mapItems.first?.placemark.coordinate {
+                    let subtitleSuffix = completion.subtitle.isEmpty ? "" : ", \(completion.subtitle.components(separatedBy: ",").first ?? "")"
+                    let cityLabel = completion.title + subtitleSuffix
+                    
+                    updateLocationAndFetch(city: cityLabel, coordinate: coordinate)
+                } else {
+                    appState.triggerToast(message: "Location not found.")
+                }
+            }
+        }
+    }
+
+    private func updateLocationAndFetch(city: String, coordinate: CLLocationCoordinate2D) {
+        addRecentLocation(city: city, lat: coordinate.latitude, lon: coordinate.longitude)
+        
+        appState.selectedLocation = city
+        appState.savedLatitude = coordinate.latitude
+        appState.savedLongitude = coordinate.longitude
+        
+        dismiss()
+    }
+}
+
 struct SortSelectionSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var sortOption: SortOption
@@ -550,10 +812,15 @@ struct ViewSelectionSheet: View {
 struct FilterSelectionSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var appState: AppState
+    @AppStorage("globalSearchText") private var globalSearchText = ""
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
     
+    var effectiveTopCat: String? {
+        appState.selectedTopCategory ?? (globalSearchText.isEmpty ? nil : appState.suggestedTopCategory)
+    }
+    
     var activeSubs: [String] {
-        if let topCat = appState.selectedTopCategory, let subs = appState.subCategories[topCat] { return subs }
+        if let cat = effectiveTopCat, let subs = appState.subCategories[cat] { return subs }
         return ["Free", "Furniture", "Electronics", "Apts / Housing", "Cars", "Gigs"]
     }
     
@@ -582,22 +849,22 @@ struct FilterSelectionSheet: View {
                                 VStack(spacing: Theme.Spacing.small) {
                                     ZStack {
                                         Circle()
-                                            .fill(appState.selectedTopCategory == nil ? Theme.Colors.primary : Theme.Colors.surfaceCard)
+                                            .fill(appState.selectedTopCategory == nil ? Color.primary : Theme.Colors.surfaceCard)
                                             .frame(width: appState.selectedTopCategory == nil ? 64 : 56, height: appState.selectedTopCategory == nil ? 64 : 56)
                                         
                                         Image(systemName: "square.grid.2x2.fill")
                                             .font(.system(size: appState.selectedTopCategory == nil ? 24 : 20, weight: .bold))
-                                            .foregroundColor(appState.selectedTopCategory == nil ? Color(.systemBackground) : .primary)
+                                            .foregroundColor(appState.selectedTopCategory == nil ? Color(.systemBackground) : Color.primary)
                                     }
                                     Text("All")
                                         .font(appState.selectedTopCategory == nil ? Theme.Typography.caption(weight: .bold) : Theme.Typography.helper(weight: .bold))
-                                        .foregroundColor(appState.selectedTopCategory == nil ? .primary : Theme.Colors.textSecondary)
+                                        .foregroundColor(appState.selectedTopCategory == nil ? Color.primary : Theme.Colors.textSecondary)
                                 }
                                 .frame(width: 76)
                             }.buttonStyle(.plain)
                             
                             ForEach(appState.topCategories, id: \.0) { cat in
-                                CategoryCircle(icon: cat.1, color: Theme.Colors.primary, label: cat.0)
+                                CategoryCircle(icon: cat.1, label: cat.0)
                             }
                         }.padding(.horizontal, Theme.Spacing.screenMargin)
                     }
@@ -638,174 +905,10 @@ struct FilterSelectionSheet: View {
     }
 }
 
-struct LocationSelectionSheet: View {
-    @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var appState: AppState
-    
-    @StateObject private var locationManager = LocationManager()
-    @StateObject private var searchService = LocationSearchService()
-    
-    @AppStorage("isNearbyMode") private var isNearbyMode = true
-    @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
-    
-    @State private var isGeocoding: Bool = false
-    let radii = [1, 5, 10, 25]
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Location").font(Theme.Typography.headingM())
-                    Spacer()
-                    Button("Done") { dismiss() }.font(Theme.Typography.body(weight: .bold)).foregroundColor(Theme.Colors.primary)
-                }
-                .padding(.horizontal, Theme.Spacing.screenMargin).padding(.top, 24).padding(.bottom, 12)
-            }
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 32) {
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("MANUAL LOCATION").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                        HStack {
-                            Image(systemName: "magnifyingglass").foregroundColor(Theme.Colors.textSecondary)
-                            TextField("Enter city, state, or zip...", text: $searchService.searchQuery)
-                                .font(Theme.Typography.body())
-                                .disableAutocorrection(true)
-                            
-                            if isGeocoding {
-                                ProgressView().scaleEffect(0.8)
-                            } else if !searchService.searchQuery.isEmpty {
-                                Button(action: { searchService.searchQuery = "" }) {
-                                    Image(systemName: "xmark.circle.fill").foregroundColor(Theme.Colors.textSecondary)
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Theme.Colors.surfaceGray)
-                        .cornerRadius(Theme.Radius.small)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Theme.Radius.small)
-                                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                        )
-                    }
-                    .padding(.horizontal, Theme.Spacing.screenMargin)
-
-                    if !searchService.completions.isEmpty {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text("SUGGESTIONS").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary).padding(.horizontal, Theme.Spacing.screenMargin).padding(.bottom, 8)
-                            
-                            ForEach(searchService.completions, id: \.self) { completion in
-                                Button(action: { selectCompletion(completion) }) {
-                                    HStack {
-                                        Image(systemName: "mappin.and.ellipse").foregroundColor(Theme.Colors.textSecondary)
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(completion.title).font(Theme.Typography.body()).foregroundColor(.primary)
-                                            if !completion.subtitle.isEmpty {
-                                                Text(completion.subtitle).font(Theme.Typography.caption()).foregroundColor(Theme.Colors.textSecondary)
-                                            }
-                                        }
-                                        Spacer()
-                                    }
-                                    .padding(.vertical, 14).padding(.horizontal, Theme.Spacing.screenMargin)
-                                }
-                                Divider().padding(.leading, 48)
-                            }
-                        }
-                    } else {
-                        Button(action: { locationManager.requestLocation() }) {
-                            HStack {
-                                Image(systemName: "location.fill")
-                                if locationManager.isRequesting {
-                                    Text("Locating...")
-                                    Spacer()
-                                    ProgressView()
-                                } else {
-                                    Text("Use Current Location")
-                                }
-                            }
-                            .font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary).frame(maxWidth: .infinity, alignment: .leading)
-                            .padding().background(Theme.Colors.surfaceGray).cornerRadius(Theme.Radius.small)
-                        }
-                        .padding(.horizontal, Theme.Spacing.screenMargin)
-                        .onChange(of: locationManager.cityNeighborhood) { _, newValue in
-                            if let city = newValue, let coord = locationManager.location?.coordinate {
-                                updateLocationAndFetch(city: city, coordinate: coord)
-                            }
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("NEARBY MODE").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                            Toggle(isOn: $isNearbyMode) { Text("Prioritize nearby items & deals").font(Theme.Typography.body()) }
-                                .tint(Theme.Colors.primary)
-                            
-                            if isNearbyMode {
-                                Divider().padding(.vertical, 4)
-                                Stepper(value: $nearbyDistance, in: 1...50, step: 1) {
-                                    Text("Distance: \(Int(nearbyDistance)) miles")
-                                        .font(Theme.Typography.body(weight: .semibold))
-                                }
-                            }
-                        }.padding(.horizontal, Theme.Spacing.screenMargin)
-                        
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("SEARCH RADIUS").font(Theme.Typography.helper(weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
-                            HStack(spacing: 8) {
-                                ForEach(radii, id: \.self) { radius in
-                                    Button(action: { nearbyDistance = Double(radius) }) {
-                                        Text("\(radius) miles")
-                                            .font(Theme.Typography.caption(weight: .semibold))
-                                            .frame(maxWidth: .infinity).padding(.vertical, 10)
-                                            .background(Int(nearbyDistance) == radius ? Theme.Colors.primary : Theme.Colors.surfaceGray)
-                                            .foregroundColor(Int(nearbyDistance) == radius ? Color(.systemBackground) : .primary)
-                                            .cornerRadius(20)
-                                    }
-                                }
-                            }
-                        }.padding(.horizontal, Theme.Spacing.screenMargin)
-                    }
-                }
-                .padding(.bottom, 40)
-            }
-        }
-        .background(Color(.systemBackground))
-    }
-    
-    private func selectCompletion(_ completion: MKLocalSearchCompletion) {
-        isGeocoding = true
-        let searchRequest = MKLocalSearch.Request(completion: completion)
-        let search = MKLocalSearch(request: searchRequest)
-        
-        search.start { response, error in
-            DispatchQueue.main.async {
-                isGeocoding = false
-                if let coordinate = response?.mapItems.first?.placemark.coordinate {
-                    let subtitleSuffix = completion.subtitle.isEmpty ? "" : ", \(completion.subtitle.components(separatedBy: ",").first ?? "")"
-                    let cityLabel = completion.title + subtitleSuffix
-                    
-                    updateLocationAndFetch(city: cityLabel, coordinate: coordinate)
-                } else {
-                    appState.triggerToast(message: "Location not found.")
-                }
-            }
-        }
-    }
-
-    private func updateLocationAndFetch(city: String, coordinate: CLLocationCoordinate2D) {
-        appState.selectedLocation = city
-        appState.savedLatitude = coordinate.latitude
-        appState.savedLongitude = coordinate.longitude
-        
-        Task {
-            await appState.fetchListings(longitude: coordinate.longitude, latitude: coordinate.latitude, radiusInMiles: nearbyDistance)
-        }
-        dismiss()
-    }
-}
-
 // MARK: - Subcomponents
 struct CategoryCircle: View {
     @EnvironmentObject var appState: AppState
-    var icon: String; var color: Color; var label: String
+    var icon: String; var label: String
     var onTap: (() -> Void)? = nil
     var isSelected: Bool { appState.selectedTopCategory == label }
     
@@ -825,18 +928,18 @@ struct CategoryCircle: View {
             VStack(spacing: Theme.Spacing.small) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? Theme.Colors.primary : Theme.Colors.surfaceCard)
+                        .fill(isSelected ? Color.primary : Theme.Colors.surfaceCard)
                         .frame(width: isSelected ? 64 : 56, height: isSelected ? 64 : 56)
-                        .shadow(color: isSelected ? Theme.Colors.primary.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
+                        .shadow(color: isSelected ? Color.primary.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
                     
                     Image(systemName: icon)
                         .font(.system(size: isSelected ? 24 : 20, weight: isSelected ? .bold : .medium))
-                        .foregroundColor(isSelected ? .white : .primary)
+                        .foregroundColor(isSelected ? Color(.systemBackground) : Color.primary)
                 }
                 
                 Text(label)
                     .font(isSelected ? Theme.Typography.caption(weight: .bold) : Theme.Typography.helper(weight: .bold))
-                    .foregroundColor(isSelected ? .primary : Theme.Colors.textSecondary)
+                    .foregroundColor(isSelected ? Color.primary : Theme.Colors.textSecondary)
             }
             .frame(width: 76)
         }.buttonStyle(.plain)
@@ -845,9 +948,14 @@ struct CategoryCircle: View {
 
 struct CraigslistCategoryBrowser: View {
     @EnvironmentObject var appState: AppState
+    @AppStorage("globalSearchText") private var globalSearchText = ""
+    
+    var effectiveTopCat: String? {
+        appState.selectedTopCategory ?? (globalSearchText.isEmpty ? nil : appState.suggestedTopCategory)
+    }
     
     var activeSubs: [String] {
-        if let topCat = appState.selectedTopCategory, let subs = appState.subCategories[topCat] { return subs }
+        if let cat = effectiveTopCat, let subs = appState.subCategories[cat] { return subs }
         return ["Free", "Furniture", "Electronics", "Apts / Housing", "Cars", "Gigs"]
     }
     
@@ -856,7 +964,7 @@ struct CraigslistCategoryBrowser: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 20) {
                     ForEach(appState.topCategories, id: \.0) { cat in
-                        CategoryCircle(icon: cat.1, color: Theme.Colors.primary, label: cat.0)
+                        CategoryCircle(icon: cat.1, label: cat.0)
                     }
                 }.padding(.horizontal, 20).padding(.vertical, 8)
             }
@@ -872,10 +980,11 @@ struct CraigslistCategoryBrowser: View {
                                 else { appState.selectedSubCategory = sub }
                             }
                         }) {
-                            Text(sub).font(Theme.Typography.caption(weight: appState.selectedSubCategory == sub ? .bold : .semibold)).padding(.horizontal, 16).padding(.vertical, 8)
-                                .background(appState.selectedSubCategory == sub ? Theme.Colors.primary : Theme.Colors.surfaceCard)
-                                .foregroundColor(appState.selectedSubCategory == sub ? Color(.systemBackground) : .primary)
-                                .clipShape(Capsule())
+                            Text(sub)
+                                .font(Theme.Typography.caption(weight: appState.selectedSubCategory == sub ? .bold : .semibold))
+                                .padding(.horizontal, 16).padding(.vertical, 8)
+                                .background(appState.selectedSubCategory == sub ? Color.primary : Theme.Colors.surfaceCard, in: Capsule())
+                                .foregroundColor(appState.selectedSubCategory == sub ? Color(.systemBackground) : Color.primary)
                         }
                     }
                 }.padding(.horizontal, Theme.Spacing.screenMargin)
