@@ -4,7 +4,6 @@ import MapKit
 struct HomeFeedView: View {
     @EnvironmentObject var appState: AppState
     
-    // Reads directly from UserDefaults to set initial map camera position securely
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(
@@ -18,13 +17,13 @@ struct HomeFeedView: View {
     @State private var selectedListingID: UUID?
     @State private var isDetailPresented = false
     
-    // Converted to AppStorage to allow cross-tab routing (e.g., from ChatView)
     @AppStorage("homeViewMode") private var viewMode: ViewMode = .swipe
-    
     @AppStorage("isNearbyMode") private var isNearbyMode = true
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 3.0
     @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
     @AppStorage("isSwipeViewEnabled") private var isSwipeViewEnabled = true
+    
+    @AppStorage("globalSearchText") private var globalSearchText = ""
     
     let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
     
@@ -36,11 +35,15 @@ struct HomeFeedView: View {
     ]
     
     var baseFilteredListings: [LiveListing] {
-        var results = appState.listings.filter { $0.tags?.contains("home") == true }
+        var results = globalSearchText.isEmpty ? appState.listings : appState.searchResults
+        
+        if globalSearchText.isEmpty {
+            results = results.filter { $0.tags?.contains("home") == true }
+        }
         
         if let topCat = appState.selectedTopCategory {
             if let validSubs = appState.subCategories[topCat] {
-                results = results.filter { validSubs.contains($0.category ?? "") }
+                results = results.filter { validSubs.contains($0.category ?? "") || $0.category == topCat }
             }
         }
         
@@ -52,14 +55,17 @@ struct HomeFeedView: View {
         case .bestMatch: break
         case .priceLowToHigh: results.sort { $0.price < $1.price }
         case .priceHighToLow: results.sort { $0.price > $1.price }
-        case .closestFirst: break // Handled by DB Radius natively
+        case .closestFirst: break
         }
         
         return results
     }
     
     var homeListings: [LiveListing] {
-        baseFilteredListings.filter {
+        if !globalSearchText.isEmpty {
+            return baseFilteredListings.filter { !appState.hiddenIDs.contains($0.id) }
+        }
+        return baseFilteredListings.filter {
             !appState.hiddenIDs.contains($0.id) &&
             !appState.votedIDs.contains($0.id) &&
             !appState.favoriteIDs.contains($0.id)
@@ -67,10 +73,12 @@ struct HomeFeedView: View {
     }
     
     var trendingListings: [LiveListing] {
+        if !globalSearchText.isEmpty { return [] }
         return Array(homeListings.prefix(6))
     }
     
     var recentListings: [LiveListing] {
+        if !globalSearchText.isEmpty { return homeListings }
         let trendingIDs = Set(trendingListings.map { $0.id })
         return homeListings.filter { !trendingIDs.contains($0.id) }
     }
@@ -94,11 +102,11 @@ struct HomeFeedView: View {
                     )
                     
                     VStack(spacing: 0) {
-                        GlassHeader(searchText: .constant(""), placeholder: "What are you looking for?", onTapped: { appState.selectedTab = 1 })
+                        GlassHeader(searchText: $globalSearchText, placeholder: "What are you looking for?", onTapped: { appState.selectedTab = 1 })
                         FilterAndViewBar(viewMode: $viewMode, isNearbyMode: $isNearbyMode)
                             .padding(.top, 16)
                         
-                        if appState.isShowingFallback {
+                        if appState.isShowingFallback && globalSearchText.isEmpty {
                             fallbackBanner()
                                 .padding(.horizontal, Theme.Spacing.screenMargin)
                                 .padding(.top, 16)
@@ -114,7 +122,7 @@ struct HomeFeedView: View {
                                     .padding(.top, 16)
                                     .id("TopMarker")
                                 
-                                if appState.isShowingFallback {
+                                if appState.isShowingFallback && globalSearchText.isEmpty {
                                     fallbackBanner()
                                         .padding(.horizontal, Theme.Spacing.screenMargin)
                                 }
@@ -133,7 +141,7 @@ struct HomeFeedView: View {
                         try? await Task.sleep(nanoseconds: 1_000_000_000)
                     }
                     .safeAreaInset(edge: .top) {
-                        GlassHeader(searchText: .constant(""), placeholder: "What are you looking for?", onTapped: { appState.selectedTab = 1 })
+                        GlassHeader(searchText: $globalSearchText, placeholder: "What are you looking for?", onTapped: { appState.selectedTab = 1 })
                     }
                 }
             }
@@ -147,6 +155,11 @@ struct HomeFeedView: View {
         }
         .onChange(of: isSwipeViewEnabled) { newValue in
             if !newValue && viewMode == .swipe { viewMode = .gallery }
+        }
+        .onChange(of: globalSearchText) { _, newValue in
+            if !newValue.isEmpty {
+                Task { await appState.fetchSearchResults(query: newValue) }
+            }
         }
     }
     
@@ -175,10 +188,10 @@ struct HomeFeedView: View {
         VStack(spacing: 24) {
             EmptyStateView(
                 icon: "magnifyingglass",
-                title: appState.isShowingFallback ? "No local items" : "No items nearby",
-                description: "We couldn't find any more items in this radius. Try adjusting your filters or explore these popular categories instead:",
-                buttonTitle: appState.isShowingFallback ? "Expand Search Radius" : nil,
-                buttonAction: appState.isShowingFallback ? {
+                title: !globalSearchText.isEmpty ? "No results for \"\(globalSearchText)\"" : (appState.isShowingFallback ? "No local items" : "No items nearby"),
+                description: !globalSearchText.isEmpty ? "Try checking your spelling or using more general terms." : "We couldn't find any more items in this radius. Try adjusting your filters or explore these popular categories instead:",
+                buttonTitle: appState.isShowingFallback && globalSearchText.isEmpty ? "Expand Search Radius" : nil,
+                buttonAction: appState.isShowingFallback && globalSearchText.isEmpty ? {
                     let generator = UIImpactFeedbackGenerator(style: .medium)
                     generator.impactOccurred()
                     withAnimation { nearbyDistance = 50.0 }
@@ -232,7 +245,7 @@ struct HomeFeedView: View {
             if !recentListings.isEmpty {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(appState.isShowingFallback ? "More Featured" : "More Nearby").font(.custom("Montserrat", size: 22).weight(.bold))
+                        Text(!globalSearchText.isEmpty ? "Search Results" : (appState.isShowingFallback ? "More Featured" : "More Nearby")).font(.custom("Montserrat", size: 22).weight(.bold))
                         Spacer()
                         Text("\(recentListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
                     }
