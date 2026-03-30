@@ -122,7 +122,6 @@ struct Theme {
 }
 
 // MARK: - REUSABLE STYLES & MODIFIERS
-
 struct MSPInputStyle: ViewModifier {
     var isFocused: Bool
     
@@ -258,8 +257,10 @@ struct GlassHeader: View {
     var placeholder: String
     var autoFocus: Bool = false
     @FocusState private var isFocused: Bool
+    
     var onTapped: () -> Void = {}
     var onCancel: (() -> Void)? = nil
+    var onSubmit: (() -> Void)? = nil // NEW: Natively supports keyboard submission
     
     @State private var showLocationSheet = false
     @State private var showAccountSheet = false
@@ -315,23 +316,27 @@ struct GlassHeader: View {
             HStack(spacing: Theme.Spacing.medium) {
                 HStack(spacing: Theme.Spacing.small) {
                     Image(systemName: "magnifyingglass").font(.system(size: 18)).foregroundColor(Theme.Colors.textSecondary)
+                    
                     if autoFocus {
+                        // FIX: Removed client-side autoSelectCategory guessing logic and added onSubmit
                         TextField(placeholder, text: $searchText)
                             .focused($isFocused)
                             .font(Theme.Typography.body())
-                            .onChange(of: searchText) { newValue in
-                                appState.autoSelectCategory(for: newValue)
+                            .submitLabel(.search)
+                            .onSubmit {
+                                onSubmit?()
                             }
                     } else {
-                        Text(placeholder)
+                        // FIX: Displays actual text on the home feed instead of always showing the placeholder
+                        Text(searchText.isEmpty ? placeholder : searchText)
                             .font(Theme.Typography.body())
                             .foregroundColor(searchText.isEmpty ? Theme.Colors.textSecondary : .primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    
                     if !searchText.isEmpty {
                         Button(action: {
                             searchText = ""
-                            appState.autoSelectCategory(for: "")
                         }) {
                             Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
                         }
