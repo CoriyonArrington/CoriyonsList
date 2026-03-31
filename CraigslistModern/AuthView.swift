@@ -180,6 +180,20 @@ struct AuthView: View {
                             .cornerRadius(Theme.Radius.small)
                             .disabled(!isFormValid)
                             .padding(.top, 8)
+                            
+                            // MARK: Forgot Password Button
+                            if !isSignUp {
+                                Button(action: {
+                                    focusedField = nil
+                                    handleResetPassword()
+                                }) {
+                                    Text("Forgot Password?")
+                                        .font(Theme.Typography.body(weight: .bold))
+                                        .foregroundColor(.primary)
+                                        .underline()
+                                }
+                                .padding(.top, 4)
+                            }
                         }
                         .padding(.horizontal, Theme.Spacing.screenMargin)
                         
@@ -251,6 +265,36 @@ struct AuthView: View {
                     await MainActor.run {
                         self.isLoading = false
                     }
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = friendlyErrorMessage(from: error)
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+    
+    private func handleResetPassword() {
+        guard !email.isEmpty else {
+            errorMessage = "Please enter your email to reset your password."
+            return
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        successMessage = nil
+        
+        Task {
+            do {
+                try await SupabaseManager.shared.client.auth.resetPasswordForEmail(
+                    email,
+                    redirectTo: URL(string: "com.coriyon.craigslistmodern://reset-callback")!
+                )
+                
+                await MainActor.run {
+                    self.isLoading = false
+                    self.successMessage = "If an account exists, a password reset link has been sent to your email."
                 }
             } catch {
                 await MainActor.run {

@@ -96,6 +96,33 @@ struct AccountView: View {
                             .padding(.horizontal, Theme.Spacing.screenMargin)
                         }
                         .buttonStyle(.plain)
+                        
+                        Divider().padding(.leading, 40)
+                        
+                        // MARK: Trust & Safety - App Store Required Post-Signup Legal Links
+                        Link(destination: URL(string: "https://www.coriyon.com/terms-of-service")!) {
+                            HStack {
+                                Image(systemName: "doc.text.fill").foregroundColor(.primary).frame(width: 24, alignment: .leading)
+                                Text("Terms of Service").font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right").font(.system(size: 14, weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                            }
+                            .padding(.vertical, 16)
+                            .padding(.horizontal, Theme.Spacing.screenMargin)
+                        }
+                        
+                        Divider().padding(.leading, 40)
+                        
+                        Link(destination: URL(string: "https://www.coriyon.com/privacy")!) {
+                            HStack {
+                                Image(systemName: "hand.raised.fill").foregroundColor(.primary).frame(width: 24, alignment: .leading)
+                                Text("Privacy Policy").font(Theme.Typography.body(weight: .semibold)).foregroundColor(.primary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right").font(.system(size: 14, weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
+                            }
+                            .padding(.vertical, 16)
+                            .padding(.horizontal, Theme.Spacing.screenMargin)
+                        }
                     }
                     .background(Theme.Colors.surfaceCard)
                     .cornerRadius(Theme.Radius.medium)
