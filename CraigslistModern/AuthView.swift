@@ -46,7 +46,7 @@ struct AuthView: View {
                                 .font(Theme.Typography.headingL())
                                 .foregroundColor(.primary)
                             
-                            Text("Sign in to message sellers and save items.")
+                            Text("Sign in to find local items near you.")
                                 .font(Theme.Typography.body())
                                 .foregroundColor(Theme.Colors.textSecondary)
                                 .multilineTextAlignment(.center)
