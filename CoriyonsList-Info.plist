@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>CoriyonsList needs your location to show you marketplace listings, deals, and buyers in your immediate neighborhood.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>CoriyonsList needs your location to show you marketplace listings, deals, and buyers in your immediate neighborhood.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>CoriyonsList requires access to your photos so you can seamlessly upload images for your marketplace listings and profile avatar.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>CoriyonsList requires camera access so you can take and upload photos of your items directly to your marketplace listings.</string>
+</dict>
 </plist>
