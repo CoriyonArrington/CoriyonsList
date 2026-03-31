@@ -11,6 +11,11 @@ struct CraigslistModernApp: App {
     // NEW: Global theme preference (Defaults to System)
     @AppStorage("appTheme") private var appTheme = "System"
     
+    // Helper to detect if the app is running via TestFlight
+    private var isTestFlight: Bool {
+        Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+    }
+    
     var colorScheme: ColorScheme? {
         switch appTheme {
         case "Light": return .light
@@ -22,9 +27,14 @@ struct CraigslistModernApp: App {
     init() {
         registerCustomFonts()
         
-        // Initialize Microsoft Clarity for interaction tracking
-        let clarityConfig = ClarityConfig(projectId: "w1lmxm28wt")
-        ClaritySDK.initialize(config: clarityConfig)
+        // Initialize Microsoft Clarity ONLY for TestFlight users
+        // It will silently skip initialization for local simulators and App Store production
+        #if !targetEnvironment(simulator)
+        if isTestFlight {
+            let clarityConfig = ClarityConfig(projectId: "w1lmxm28wt")
+            ClaritySDK.initialize(config: clarityConfig)
+        }
+        #endif
     }
     
     var body: some Scene {
