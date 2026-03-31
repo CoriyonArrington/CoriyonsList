@@ -6,6 +6,10 @@ import CryptoKit
 struct AuthView: View {
     @EnvironmentObject var appState: AppState
     
+    enum AuthField: Hashable {
+        case email, password
+    }
+    
     @State private var email = ""
     @State private var password = ""
     @State private var isLoading = false
@@ -15,14 +19,16 @@ struct AuthView: View {
     @State private var errorMessage: String?
     @State private var successMessage: String?
     
+    @FocusState private var focusedField: AuthField?
+    
     @State private var webAuthSession: WebAuthSession?
     @State private var appleNonce: String?
     
     var body: some View {
         NavigationStack {
             ZStack {
+                // Simplified background for cleaner contrast
                 Color(.systemGroupedBackground).ignoresSafeArea()
-                CraigslistPattern()
                 
                 ScrollView {
                     VStack(spacing: Theme.Spacing.large) {
@@ -50,7 +56,7 @@ struct AuthView: View {
                         
                         // MARK: - OAuth Providers
                         VStack(spacing: Theme.Spacing.medium) {
-                            // Google Sign In
+                            // Google Sign In (Softened border to look like a button, not an input)
                             Button(action: {
                                 Task { await handleGoogleSignIn() }
                             }) {
@@ -67,9 +73,9 @@ struct AuthView: View {
                                 .foregroundColor(.primary)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 56)
-                                .background(Theme.Colors.surfaceCard)
+                                .background(Color(.systemBackground))
                                 .cornerRadius(Theme.Radius.small)
-                                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small).stroke(Color.primary.opacity(0.3), lineWidth: 1))
                             }
                             .disabled(isGoogleLoading || isLoading || isAppleLoading)
                             
@@ -101,25 +107,29 @@ struct AuthView: View {
                         VStack(spacing: Theme.Spacing.medium) {
                             if let success = successMessage {
                                 Text(success)
-                                    .font(Theme.Typography.caption(weight: .semibold))
-                                    .foregroundColor(.green)
+                                    .font(Theme.Typography.caption(weight: .bold))
+                                    .foregroundColor(Color(.systemBackground))
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
-                                    .background(Color.green.opacity(0.1))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.green)
                                     .cornerRadius(8)
                             }
                             
                             if let error = errorMessage {
                                 Text(error)
-                                    .font(Theme.Typography.caption(weight: .semibold))
-                                    .foregroundColor(.red)
+                                    .font(Theme.Typography.caption(weight: .bold))
+                                    .foregroundColor(Color(.systemBackground))
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
-                                    .background(Color.red.opacity(0.1))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.red)
                                     .cornerRadius(8)
                             }
                             
+                            // WCAG Compliant Inputs (Heavy border ONLY on active focus)
                             TextField("Email", text: $email)
+                                .focused($focusedField, equals: .email)
                                 .keyboardType(.emailAddress)
                                 .autocapitalization(.none)
                                 .disableAutocorrection(true)
@@ -127,41 +137,84 @@ struct AuthView: View {
                                 .frame(height: 56)
                                 .background(Theme.Colors.inputBackground)
                                 .cornerRadius(Theme.Radius.small)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Theme.Radius.small)
+                                        .stroke(focusedField == .email ? Color.primary : Color.primary.opacity(0.4), lineWidth: focusedField == .email ? 2 : 1)
+                                )
+                                .submitLabel(.next)
+                                .onSubmit { focusedField = .password }
                             
                             SecureField("Password", text: $password)
+                                .focused($focusedField, equals: .password)
                                 .padding(.horizontal, Theme.Spacing.medium)
                                 .frame(height: 56)
                                 .background(Theme.Colors.inputBackground)
                                 .cornerRadius(Theme.Radius.small)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Theme.Radius.small)
+                                        .stroke(focusedField == .password ? Color.primary : Color.primary.opacity(0.4), lineWidth: focusedField == .password ? 2 : 1)
+                                )
+                                .submitLabel(.done)
+                                .onSubmit {
+                                    focusedField = nil
+                                    handleEmailAuth()
+                                }
                             
-                            Button(action: handleEmailAuth) {
+                            // WCAG AAA Compliant Submit Button (Absolute Black/White Contrast)
+                            let isFormValid = !email.isEmpty && !password.isEmpty && !isGoogleLoading && !isAppleLoading
+                            Button(action: {
+                                focusedField = nil
+                                handleEmailAuth()
+                            }) {
                                 if isLoading {
-                                    ProgressView().tint(.white)
+                                    ProgressView().tint(Color(.systemBackground))
                                 } else {
                                     Text(isSignUp ? "Create Account" : "Sign In")
                                 }
                             }
-                            .buttonStyle(MSPPrimaryButtonStyle(isEnabled: !email.isEmpty && !password.isEmpty && !isGoogleLoading && !isAppleLoading))
+                            .font(Theme.Typography.body(weight: .bold))
+                            .foregroundColor(isFormValid ? Color(.systemBackground) : Color(.systemGray2))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(isFormValid ? Color.primary : Color(.systemGray5))
+                            .cornerRadius(Theme.Radius.small)
+                            .disabled(!isFormValid)
                             .padding(.top, 8)
                         }
                         .padding(.horizontal, Theme.Spacing.screenMargin)
                         
-                        // MARK: - Toggle Mode
-                        Button(action: {
-                            withAnimation {
-                                isSignUp.toggle()
-                                errorMessage = nil
-                                successMessage = nil
+                        // MARK: - Toggle Mode & App Store EULA
+                        VStack(spacing: 16) {
+                            Button(action: {
+                                withAnimation {
+                                    isSignUp.toggle()
+                                    errorMessage = nil
+                                    successMessage = nil
+                                    focusedField = nil
+                                }
+                            }) {
+                                Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
+                                    .font(Theme.Typography.body(weight: .bold))
+                                    .foregroundColor(.primary)
+                                    .underline()
                             }
-                        }) {
-                            Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
-                                .font(Theme.Typography.body(weight: .semibold))
-                                .foregroundColor(Theme.Colors.primary)
+                            
+                            if isSignUp {
+                                Text("By creating an account, you agree to our [Terms of Service](https://www.coriyon.com/terms-of-service) and [Privacy Policy](https://www.coriyon.com/privacy). Objectionable content or abusive behavior is strictly prohibited and will result in immediate account termination.")
+                                    .font(Theme.Typography.helper(weight: .semibold))
+                                    .foregroundColor(.primary)
+                                    .multilineTextAlignment(.center)
+                                    .tint(.blue)
+                                    .padding(.horizontal, Theme.Spacing.screenMargin)
+                            }
                         }
                         .padding(.top, 8)
                         
                         Spacer()
                     }
+                }
+                .onTapGesture {
+                    focusedField = nil
                 }
             }
             .navigationBarHidden(true)
@@ -201,7 +254,7 @@ struct AuthView: View {
                 }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = error.localizedDescription
+                    self.errorMessage = friendlyErrorMessage(from: error)
                     self.isLoading = false
                 }
             }
@@ -229,7 +282,7 @@ struct AuthView: View {
             await appState.checkAuth()
         } catch {
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                self.errorMessage = friendlyErrorMessage(from: error)
                 self.isGoogleLoading = false
             }
         }
@@ -262,20 +315,40 @@ struct AuthView: View {
                 await appState.checkAuth()
             } catch {
                 await MainActor.run {
-                    self.errorMessage = error.localizedDescription
+                    self.errorMessage = friendlyErrorMessage(from: error)
                     self.isAppleLoading = false
                 }
             }
             
         case .failure(let error):
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                self.errorMessage = friendlyErrorMessage(from: error)
                 self.isAppleLoading = false
             }
         }
     }
     
-    // MARK: - Helpers (Apple Sign-In)
+    // MARK: - Helpers
+    
+    private func friendlyErrorMessage(from error: Error) -> String {
+        let desc = error.localizedDescription.lowercased()
+        
+        if desc.contains("invalid login credentials") {
+            return "The email or password you entered is incorrect."
+        } else if desc.contains("already registered") || desc.contains("already exists") {
+            return "An account with this email already exists. Try signing in instead."
+        } else if desc.contains("password should be at least") || desc.contains("weak password") {
+            return "Your password is too weak. Please use at least 6 characters."
+        } else if desc.contains("rate limit") || desc.contains("too many requests") {
+            return "Please wait a moment before trying again."
+        } else if desc.contains("network") || desc.contains("internet") || desc.contains("offline") || desc.contains("unreachable") {
+            return "Please check your internet connection and try again."
+        } else if desc.contains("canceled") || desc.contains("cancelled") {
+            return "Sign in was canceled."
+        }
+        
+        return "Something went wrong. Please try again."
+    }
     
     private func randomNonceString(length: Int = 32) -> String {
         var randomBytes = [UInt8](repeating: 0, count: length)
