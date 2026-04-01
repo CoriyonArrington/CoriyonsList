@@ -21,13 +21,14 @@ struct AuthView: View {
     
     @FocusState private var focusedField: AuthField?
     
-    @State private var webAuthSession: WebAuthSession?
     @State private var appleNonce: String?
+    
+    @StateObject private var appleSignInHelper = AppleSignInHelper()
+    @StateObject private var googleAuthHelper = WebAuthSession()
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // Simplified background for cleaner contrast
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 
                 ScrollView {
@@ -46,7 +47,7 @@ struct AuthView: View {
                                 .font(Theme.Typography.headingL())
                                 .foregroundColor(.primary)
                             
-                            Text("Sign in to find local items near you.")
+                            Text("Sign in to message sellers and save items.")
                                 .font(Theme.Typography.body())
                                 .foregroundColor(Theme.Colors.textSecondary)
                                 .multilineTextAlignment(.center)
@@ -56,7 +57,7 @@ struct AuthView: View {
                         
                         // MARK: - OAuth Providers
                         VStack(spacing: Theme.Spacing.medium) {
-                            // Google Sign In (Softened border to look like a button, not an input)
+                            // MARK: Google Sign In
                             Button(action: {
                                 Task { await handleGoogleSignIn() }
                             }) {
@@ -79,18 +80,33 @@ struct AuthView: View {
                             }
                             .disabled(isGoogleLoading || isLoading || isAppleLoading)
                             
-                            // Apple Sign In
-                            SignInWithAppleButton(.continue) { request in
+                            // MARK: Apple Sign In
+                            Button(action: {
+                                isAppleLoading = true
+                                errorMessage = nil
                                 let nonce = randomNonceString()
                                 appleNonce = nonce
-                                request.requestedScopes = [.fullName, .email]
-                                request.nonce = sha256(nonce)
-                            } onCompletion: { result in
-                                Task { await handleAppleSignIn(result: result) }
+                                appleSignInHelper.startSignIn(nonce: nonce) { result in
+                                    Task { await handleAppleSignIn(result: result) }
+                                }
+                            }) {
+                                HStack(spacing: 12) {
+                                    if isAppleLoading {
+                                        ProgressView().tint(Color(.systemBackground))
+                                    } else {
+                                        Image(systemName: "applelogo")
+                                            .font(.system(size: 20))
+                                            .offset(y: -1)
+                                        Text("Continue with Apple")
+                                            .font(Theme.Typography.body(weight: .bold))
+                                    }
+                                }
+                                .foregroundColor(Color(.systemBackground))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(Color.primary)
+                                .cornerRadius(Theme.Radius.small)
                             }
-                            .signInWithAppleButtonStyle(UITraitCollection.current.userInterfaceStyle == .dark ? .white : .black)
-                            .frame(height: 56)
-                            .cornerRadius(Theme.Radius.small)
                             .disabled(isGoogleLoading || isLoading || isAppleLoading)
                         }
                         .padding(.horizontal, Theme.Spacing.screenMargin)
@@ -127,7 +143,6 @@ struct AuthView: View {
                                     .cornerRadius(8)
                             }
                             
-                            // WCAG Compliant Inputs (Heavy border ONLY on active focus)
                             TextField("Email", text: $email)
                                 .focused($focusedField, equals: .email)
                                 .keyboardType(.emailAddress)
@@ -160,28 +175,30 @@ struct AuthView: View {
                                     handleEmailAuth()
                                 }
                             
-                            // WCAG AAA Compliant Submit Button (Absolute Black/White Contrast)
                             let isFormValid = !email.isEmpty && !password.isEmpty && !isGoogleLoading && !isAppleLoading
+                            
+                            // FIX: Moved the frame and background styling INSIDE the button label closure so the entire button area is clickable
                             Button(action: {
                                 focusedField = nil
                                 handleEmailAuth()
                             }) {
-                                if isLoading {
-                                    ProgressView().tint(Color(.systemBackground))
-                                } else {
-                                    Text(isSignUp ? "Create Account" : "Sign In")
+                                Group {
+                                    if isLoading {
+                                        ProgressView().tint(Color(.systemBackground))
+                                    } else {
+                                        Text(isSignUp ? "Create Account" : "Sign In")
+                                    }
                                 }
+                                .font(Theme.Typography.body(weight: .bold))
+                                .foregroundColor(isFormValid ? Color(.systemBackground) : Color(.systemGray2))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(isFormValid ? Color.primary : Color(.systemGray5))
+                                .cornerRadius(Theme.Radius.small)
                             }
-                            .font(Theme.Typography.body(weight: .bold))
-                            .foregroundColor(isFormValid ? Color(.systemBackground) : Color(.systemGray2))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(isFormValid ? Color.primary : Color(.systemGray5))
-                            .cornerRadius(Theme.Radius.small)
                             .disabled(!isFormValid)
                             .padding(.top, 8)
                             
-                            // MARK: Forgot Password Button
                             if !isSignUp {
                                 Button(action: {
                                     focusedField = nil
@@ -317,27 +334,23 @@ struct AuthView: View {
                 redirectTo: URL(string: "com.coriyon.craigslistmodern://login-callback")!
             )
             
-            let sessionProvider = WebAuthSession()
-            await MainActor.run { self.webAuthSession = sessionProvider }
-            
-            let callbackURL = try await sessionProvider.start(url: url, callbackURLScheme: "com.coriyon.craigslistmodern")
+            let callbackURL = try await googleAuthHelper.start(url: url, callbackURLScheme: "com.coriyon.craigslistmodern")
             _ = try await SupabaseManager.shared.client.auth.session(from: callbackURL)
             
             await appState.checkAuth()
         } catch {
             await MainActor.run {
-                self.errorMessage = friendlyErrorMessage(from: error)
+                if let webAuthError = error as? ASWebAuthenticationSessionError, webAuthError.code == .canceledLogin {
+                    self.errorMessage = nil
+                } else {
+                    self.errorMessage = friendlyErrorMessage(from: error)
+                }
                 self.isGoogleLoading = false
             }
         }
     }
     
     private func handleAppleSignIn(result: Result<ASAuthorization, Error>) async {
-        await MainActor.run {
-            isAppleLoading = true
-            errorMessage = nil
-        }
-        
         switch result {
         case .success(let authorization):
             guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
@@ -366,7 +379,11 @@ struct AuthView: View {
             
         case .failure(let error):
             await MainActor.run {
-                self.errorMessage = friendlyErrorMessage(from: error)
+                if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+                    self.errorMessage = nil
+                } else {
+                    self.errorMessage = friendlyErrorMessage(from: error)
+                }
                 self.isAppleLoading = false
             }
         }
@@ -375,8 +392,18 @@ struct AuthView: View {
     // MARK: - Helpers
     
     private func friendlyErrorMessage(from error: Error) -> String {
-        let desc = error.localizedDescription.lowercased()
+        if let authError = error as? ASAuthorizationError {
+            switch authError.code {
+            case .canceled: return "Sign in was canceled."
+            case .failed: return "Apple Sign In failed. Please try again."
+            case .invalidResponse: return "Invalid response from Apple."
+            case .notHandled: return "Sign in was not completed."
+            case .unknown: return "An unknown error occurred with Apple Sign In."
+            @unknown default: return "Something went wrong. Please try again."
+            }
+        }
         
+        let desc = error.localizedDescription.lowercased()
         if desc.contains("invalid login credentials") {
             return "The email or password you entered is incorrect."
         } else if desc.contains("already registered") || desc.contains("already exists") {
@@ -400,16 +427,46 @@ struct AuthView: View {
         let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
         return String(randomBytes.map { charset[Int($0) % charset.count] })
     }
+}
 
-    private func sha256(_ input: String) -> String {
-        let inputData = Data(input.utf8)
-        let hashedData = SHA256.hash(data: inputData)
-        return hashedData.compactMap { String(format: "%02x", $0) }.joined()
+// MARK: - Apple Sign In Manual Helper
+class AppleSignInHelper: NSObject, ObservableObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    var onResult: ((Result<ASAuthorization, Error>) -> Void)?
+    
+    func startSignIn(nonce: String, completion: @escaping (Result<ASAuthorization, Error>) -> Void) {
+        self.onResult = completion
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        
+        let inputData = Data(nonce.utf8)
+        let hashedData = CryptoKit.SHA256.hash(data: inputData)
+        let hashedNonce = hashedData.compactMap { String(format: "%02x", $0) }.joined()
+        request.nonce = hashedNonce
+        
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = self
+        controller.presentationContextProvider = self
+        controller.performRequests()
+    }
+    
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        let windowScene = UIApplication.shared.connectedScenes
+            .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+        return windowScene?.windows.first(where: { $0.isKeyWindow }) ?? ASPresentationAnchor()
+    }
+    
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        onResult?(.success(authorization))
+    }
+    
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        onResult?(.failure(error))
     }
 }
 
 // MARK: - WebAuthSession Helper
-class WebAuthSession: NSObject, ASWebAuthenticationPresentationContextProviding {
+class WebAuthSession: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
     private var authSession: ASWebAuthenticationSession?
     
     @MainActor
