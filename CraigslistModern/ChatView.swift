@@ -36,6 +36,10 @@ struct ChatView: View {
                 // Set spacing to 0 for absolute control over the layout padding
                 VStack(alignment: .leading, spacing: 0) {
                     
+                    // FIX: Placed the header strictly in the layout flow.
+                    // Bypasses the .safeAreaInset modifier which triggers aggressive layout shifts when mixed with Lists.
+                    GlassHeader(searchText: $searchText, placeholder: "Search messages")
+                    
                     // MARK: - Custom Scrollable Segmented Bar
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Theme.Spacing.small) {
@@ -102,13 +106,12 @@ struct ChatView: View {
                         }
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
+                        // FIX: Explicitly removing the internal default padding iOS applies to plain lists
+                        .padding(.top, -8)
                     }
                 }
-                .safeAreaInset(edge: .top) {
-                    GlassHeader(searchText: $searchText, placeholder: "Search messages")
-                }
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .task {
                 if let uid = appState.currentUserID {
                     await chatStore.fetchInbox(currentUserId: uid)
