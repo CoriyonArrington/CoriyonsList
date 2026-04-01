@@ -45,8 +45,9 @@ struct FavoritesView: View {
                                             .font(Theme.Typography.caption(weight: statusSelection == option ? .bold : .semibold))
                                             .padding(.horizontal, Theme.Spacing.medium)
                                             .frame(minHeight: 38)
-                                            .background(statusSelection == option ? Theme.Colors.primary : Theme.Colors.surfaceCard)
-                                            .foregroundColor(statusSelection == option ? Color(.systemBackground) : .primary)
+                                            // FIX: Updated background and text color to match Action Bar styling
+                                            .background(statusSelection == option ? Theme.Colors.primary : Color(.systemGray5))
+                                            .foregroundColor(statusSelection == option ? .white : .primary)
                                             .cornerRadius(Theme.Radius.small)
                                     }
                                 }
