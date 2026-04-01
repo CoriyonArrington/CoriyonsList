@@ -56,11 +56,9 @@ struct HomeFeedView: View {
     
     var homeListings: [LiveListing] {
         return baseFilteredListings.filter { listing in
-            // FIX: Industry Standard Marketplace Pattern.
-            // 1. Hide the user's own items from public discovery.
-            // 2. Hide items they have explicitly swiped left on / hidden.
             let isNotOwnItem = listing.sellerId != appState.currentUserID
-            let isNotHidden = !appState.hiddenIDs.contains(listing.id)
+            // In Swipe mode, let SwipeFeedView handle visibility locally so it can show its own Empty State and keep the Undo button.
+            let isNotHidden = viewMode == .swipe ? true : !appState.hiddenIDs.contains(listing.id)
             
             return isNotOwnItem && isNotHidden
         }
@@ -80,7 +78,9 @@ struct HomeFeedView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
+                // Background color handles environment natively
                 Color(viewMode == .map ? .black : .systemGroupedBackground).ignoresSafeArea()
+                
                 if viewMode != .map { CraigslistPattern() }
                 
                 if viewMode == .map {
@@ -102,13 +102,17 @@ struct HomeFeedView: View {
                     ScrollView(showsIndicators: false) {
                         ScrollViewReader { proxy in
                             VStack(alignment: .leading, spacing: 24) {
+                                // FIX: Added explicit zIndex to ensure it strictly sits above the feed layer
                                 FilterAndViewBar(viewMode: $viewMode)
-                                    .padding(.top, 16).id("TopMarker")
+                                    .padding(.top, 16)
+                                    .id("TopMarker")
+                                    .zIndex(100)
                                 
                                 if homeListings.isEmpty {
                                     emptyStateView()
                                 } else {
                                     sectionedFeed(viewMode: viewMode, proxy: proxy)
+                                        .zIndex(1)
                                 }
                                 Spacer(minLength: 40)
                             }
@@ -124,6 +128,7 @@ struct HomeFeedView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            // FIX: The detail sheet is now attached to the absolute outermost view boundary, completely isolating it from the action bar sheet bugs.
             .sheet(isPresented: $isDetailPresented) {
                 ListingPagerView(listings: $appState.listings, filteredIDs: homeListings.map{$0.id}, selectedListingID: $selectedListingID)
             }
@@ -201,27 +206,44 @@ struct HomeFeedView: View {
     
     @ViewBuilder
     private func sectionedFeed(viewMode: ViewMode, proxy: ScrollViewProxy) -> some View {
-        VStack(alignment: .leading, spacing: 24) {
-            if !trendingListings.isEmpty {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(globalSearchText.isEmpty ? "Trending" : "Top Results").font(.custom("Montserrat", size: 22).weight(.bold))
-                        Spacer()
-                        Text("\(trendingListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
-                    }.padding(.horizontal, 16)
-                    feedContent(for: viewMode, listings: trendingListings, proxy: proxy)
-                }.id("TrendingSection")
+        if viewMode == .swipe {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(globalSearchText.isEmpty ? "Top Results" : "Search Results")
+                        .font(.custom("Montserrat", size: 22).weight(.bold))
+                    Spacer()
+                    Text("\(homeListings.count) results")
+                        .font(.custom("NunitoSans", size: 14).weight(.semibold))
+                        .foregroundColor(.secondary)
+                }.padding(.horizontal, 16)
+                
+                SwipeFeedView(listings: homeListings, selectedListingID: $selectedListingID, isDetailPresented: $isDetailPresented, proxy: proxy, isSearch: !globalSearchText.isEmpty)
+                    .frame(height: 520)
             }
-            
-            if !recentListings.isEmpty {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(globalSearchText.isEmpty ? "More" : "More Results").font(.custom("Montserrat", size: 22).weight(.bold))
-                        Spacer()
-                        Text("\(recentListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
-                    }.padding(.horizontal, 16)
-                    feedContent(for: viewMode, listings: recentListings, proxy: proxy)
-                }.id("RecentSection")
+            .padding(.top, 8)
+        } else {
+            VStack(alignment: .leading, spacing: 24) {
+                if !trendingListings.isEmpty {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(globalSearchText.isEmpty ? "Trending" : "Top Results").font(.custom("Montserrat", size: 22).weight(.bold))
+                            Spacer()
+                            Text("\(trendingListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
+                        }.padding(.horizontal, 16)
+                        feedContent(for: viewMode, listings: trendingListings, proxy: proxy)
+                    }.id("TrendingSection")
+                }
+                
+                if !recentListings.isEmpty {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(globalSearchText.isEmpty ? "More" : "More Results").font(.custom("Montserrat", size: 22).weight(.bold))
+                            Spacer()
+                            Text("\(recentListings.count) results").font(.custom("NunitoSans", size: 14).weight(.semibold)).foregroundColor(.secondary)
+                        }.padding(.horizontal, 16)
+                        feedContent(for: viewMode, listings: recentListings, proxy: proxy)
+                    }.id("RecentSection")
+                }
             }
         }
     }
@@ -246,9 +268,6 @@ struct HomeFeedView: View {
                     ListListingCard(listing: listing).onTapGesture { selectedListingID = listing.id; isDetailPresented = true }
                 }
             }.padding(.horizontal, 16)
-        } else if mode == .swipe {
-            SwipeFeedView(listings: listings, selectedListingID: $selectedListingID, isDetailPresented: $isDetailPresented, proxy: proxy, isSearch: !globalSearchText.isEmpty)
-                .frame(height: 480)
         }
     }
 }

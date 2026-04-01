@@ -251,6 +251,12 @@ struct CraigslistPattern: View {
 }
 
 // MARK: - Headers & Action Bars
+
+enum HeaderSheet: String, Identifiable {
+    case location, account
+    var id: String { self.rawValue }
+}
+
 struct GlassHeader: View {
     @EnvironmentObject var appState: AppState
     @Binding var searchText: String
@@ -262,8 +268,8 @@ struct GlassHeader: View {
     var onCancel: (() -> Void)? = nil
     var onSubmit: (() -> Void)? = nil
     
-    @State private var showLocationSheet = false
-    @State private var showAccountSheet = false
+    // FIX: Unified enum to eliminate SwiftUI sheet state conflicts
+    @State private var activeSheet: HeaderSheet? = nil
     
     @StateObject private var locationManager = LocationManager()
     @AppStorage("hasSetInitialLocation") private var hasSetInitialLocation = false
@@ -277,7 +283,7 @@ struct GlassHeader: View {
                     .frame(width: 32, height: 32)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 
-                Button(action: { showLocationSheet = true }) {
+                Button(action: { activeSheet = .location }) {
                     HStack(spacing: Theme.Spacing.small) {
                         Text(appState.selectedLocation)
                             .font(Theme.Typography.body(weight: .bold))
@@ -285,10 +291,9 @@ struct GlassHeader: View {
                         Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.Colors.textSecondary)
                     }
                 }
-                .sheet(isPresented: $showLocationSheet) { LocationSelectionSheet().presentationDetents([.medium, .large]) }
                 Spacer()
                 
-                Button(action: { showAccountSheet = true }) {
+                Button(action: { activeSheet = .account }) {
                     if let avatarUrl = appState.displayAvatarURL,
                        let url = URL(string: avatarUrl) {
                         AsyncImage(url: url) { image in
@@ -305,9 +310,6 @@ struct GlassHeader: View {
                             .frame(width: 32, height: 32)
                             .foregroundColor(Theme.Colors.primary)
                     }
-                }
-                .sheet(isPresented: $showAccountSheet) {
-                    AccountView().presentationDetents([.medium, .large])
                 }
             }
             .padding(.horizontal, Theme.Spacing.screenMargin)
@@ -371,6 +373,14 @@ struct GlassHeader: View {
                 .ignoresSafeArea(edges: .top)
         )
         .overlay(Divider().opacity(0.3), alignment: .bottom)
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .location:
+                LocationSelectionSheet().presentationDetents([.medium, .large])
+            case .account:
+                AccountView().presentationDetents([.medium, .large])
+            }
+        }
         .onAppear {
             if autoFocus { DispatchQueue.main.async { isFocused = true } }
             
@@ -394,7 +404,11 @@ struct GlassHeader: View {
     }
 }
 
-// MARK: - Filter And View Bar (Action Bar)
+enum ActionBarSheet: String, Identifiable {
+    case filter, sort, view
+    var id: String { self.rawValue }
+}
+
 struct FilterAndViewBar: View {
     @EnvironmentObject var appState: AppState
     @Binding var viewMode: ViewMode
@@ -402,9 +416,8 @@ struct FilterAndViewBar: View {
     @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
     @AppStorage("globalSearchText") private var globalSearchText = ""
     
-    @State private var showFilterSheet = false
-    @State private var showViewSheet = false
-    @State private var showSortSheet = false
+    // FIX: Unified enum to eliminate SwiftUI sheet state conflicts
+    @State private var activeSheet: ActionBarSheet? = nil
     
     var effectiveTopCat: String? {
         appState.selectedTopCategory ?? (globalSearchText.isEmpty ? nil : appState.suggestedTopCategory)
@@ -419,13 +432,11 @@ struct FilterAndViewBar: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Spacing.small) {
                 
-                // FIX: "Nearby" Action pill completely removed per Hick's Law cleanup.
-                
                 // 1. Unified Category Button
                 let activeLabel = appState.selectedSubCategory ?? effectiveTopCat ?? "All Categories"
                 let isCatActive = effectiveTopCat != nil || appState.selectedSubCategory != nil
                 
-                Button(action: { showFilterSheet = true }) {
+                Button(action: { activeSheet = .filter }) {
                     HStack(spacing: 6) {
                         Image(systemName: currentCategoryIcon)
                         Text(activeLabel).fixedSize()
@@ -436,7 +447,6 @@ struct FilterAndViewBar: View {
                     .background(isCatActive ? Theme.Colors.primary : Color.primary, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
                     .foregroundColor(isCatActive ? .white : Color(.systemBackground))
                 }
-                .sheet(isPresented: $showFilterSheet) { FilterSelectionSheet().presentationDetents([.medium, .large]) }
                 
                 // 2. Subcategory Menu Dropdown
                 if let topCat = effectiveTopCat, let validSubs = appState.subCategories[topCat] {
@@ -468,7 +478,7 @@ struct FilterAndViewBar: View {
                 
                 // 3. Sort Button
                 let isSortActive = sortOption != .bestMatch
-                Button(action: { showSortSheet = true }) {
+                Button(action: { activeSheet = .sort }) {
                     HStack(spacing: 6) {
                         Image(systemName: sortOption.icon)
                         Text(sortOption.rawValue).fixedSize()
@@ -479,10 +489,9 @@ struct FilterAndViewBar: View {
                     .background(isSortActive ? Theme.Colors.primary : Color.primary, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
                     .foregroundColor(isSortActive ? .white : Color(.systemBackground))
                 }
-                .sheet(isPresented: $showSortSheet) { SortSelectionSheet(sortOption: $sortOption).presentationDetents([.height(350)]) }
                 
                 // 4. View Mode Button
-                Button(action: { showViewSheet = true }) {
+                Button(action: { activeSheet = .view }) {
                     HStack(spacing: 6) {
                         Image(systemName: viewMode.icon)
                         Text(viewMode.rawValue).fixedSize()
@@ -493,9 +502,18 @@ struct FilterAndViewBar: View {
                     .background(Color.primary, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
                     .foregroundColor(Color(.systemBackground))
                 }
-                .sheet(isPresented: $showViewSheet) { ViewSelectionSheet(viewMode: $viewMode).presentationDetents([.height(350)]) }
             }
             .padding(.horizontal, Theme.Spacing.screenMargin)
+        }
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .filter:
+                FilterSelectionSheet().presentationDetents([.medium, .large])
+            case .sort:
+                SortSelectionSheet(sortOption: $sortOption).presentationDetents([.height(350)])
+            case .view:
+                ViewSelectionSheet(viewMode: $viewMode).presentationDetents([.height(350)])
+            }
         }
     }
 }
@@ -552,7 +570,6 @@ struct LocationSelectionSheet: View {
             }
             
             ScrollView(showsIndicators: false) {
-                // FIX: Master VStack spacing tightly governs exactly 32pts between every logical block
                 VStack(alignment: .leading, spacing: 32) {
                     
                     // 1. Manual Location Search
