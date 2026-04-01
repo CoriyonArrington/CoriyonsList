@@ -268,7 +268,9 @@ struct GlassHeader: View {
     var onCancel: (() -> Void)? = nil
     var onSubmit: (() -> Void)? = nil
     
-    // FIX: Unified enum to eliminate SwiftUI sheet state conflicts
+    var onFetchStarted: (() -> Void)? = nil
+    var onFetchCompleted: (() -> Void)? = nil
+    
     @State private var activeSheet: HeaderSheet? = nil
     
     @StateObject private var locationManager = LocationManager()
@@ -397,7 +399,9 @@ struct GlassHeader: View {
                 appState.savedLongitude = coord.longitude
                 
                 Task {
+                    await MainActor.run { onFetchStarted?() }
                     await appState.fetchListings(longitude: coord.longitude, latitude: coord.latitude, radiusInMiles: 50.0)
+                    await MainActor.run { onFetchCompleted?() }
                 }
             }
         }
@@ -416,7 +420,6 @@ struct FilterAndViewBar: View {
     @AppStorage("sortOption") private var sortOption: SortOption = .bestMatch
     @AppStorage("globalSearchText") private var globalSearchText = ""
     
-    // FIX: Unified enum to eliminate SwiftUI sheet state conflicts
     @State private var activeSheet: ActionBarSheet? = nil
     
     var effectiveTopCat: String? {
@@ -432,10 +435,10 @@ struct FilterAndViewBar: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Spacing.small) {
                 
-                // 1. Unified Category Button
                 let activeLabel = appState.selectedSubCategory ?? effectiveTopCat ?? "All Categories"
                 let isCatActive = effectiveTopCat != nil || appState.selectedSubCategory != nil
                 
+                // 1. Unified Category Button
                 Button(action: { activeSheet = .filter }) {
                     HStack(spacing: 6) {
                         Image(systemName: currentCategoryIcon)
@@ -866,16 +869,16 @@ struct FilterSelectionSheet: View {
                                 VStack(spacing: Theme.Spacing.small) {
                                     ZStack {
                                         Circle()
-                                            .fill(appState.selectedTopCategory == nil ? Color.primary : Theme.Colors.surfaceCard)
+                                            .fill(appState.selectedTopCategory == nil ? Theme.Colors.primary : Theme.Colors.surfaceCard)
                                             .frame(width: appState.selectedTopCategory == nil ? 64 : 56, height: appState.selectedTopCategory == nil ? 64 : 56)
                                         
                                         Image(systemName: "square.grid.2x2.fill")
                                             .font(.system(size: appState.selectedTopCategory == nil ? 24 : 20, weight: .bold))
-                                            .foregroundColor(appState.selectedTopCategory == nil ? Color(.systemBackground) : Color.primary)
+                                            .foregroundColor(appState.selectedTopCategory == nil ? .white : .primary)
                                     }
                                     Text("All")
                                         .font(appState.selectedTopCategory == nil ? Theme.Typography.caption(weight: .bold) : Theme.Typography.helper(weight: .bold))
-                                        .foregroundColor(appState.selectedTopCategory == nil ? Color.primary : Theme.Colors.textSecondary)
+                                        .foregroundColor(appState.selectedTopCategory == nil ? Theme.Colors.primary : Theme.Colors.textSecondary)
                                 }
                                 .frame(width: 76)
                             }.buttonStyle(.plain)
@@ -945,18 +948,18 @@ struct CategoryCircle: View {
             VStack(spacing: Theme.Spacing.small) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? Color.primary : Theme.Colors.surfaceCard)
+                        .fill(isSelected ? Theme.Colors.primary : Theme.Colors.surfaceCard)
                         .frame(width: isSelected ? 64 : 56, height: isSelected ? 64 : 56)
-                        .shadow(color: isSelected ? Color.primary.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
+                        .shadow(color: isSelected ? Theme.Colors.primary.opacity(0.3) : .clear, radius: 8, x: 0, y: 4)
                     
                     Image(systemName: icon)
                         .font(.system(size: isSelected ? 24 : 20, weight: isSelected ? .bold : .medium))
-                        .foregroundColor(isSelected ? Color(.systemBackground) : Color.primary)
+                        .foregroundColor(isSelected ? .white : .primary)
                 }
                 
                 Text(label)
                     .font(isSelected ? Theme.Typography.caption(weight: .bold) : Theme.Typography.helper(weight: .bold))
-                    .foregroundColor(isSelected ? Color.primary : Theme.Colors.textSecondary)
+                    .foregroundColor(isSelected ? Theme.Colors.primary : Theme.Colors.textSecondary)
             }
             .frame(width: 76)
         }.buttonStyle(.plain)
@@ -1000,8 +1003,8 @@ struct CraigslistCategoryBrowser: View {
                             Text(sub)
                                 .font(Theme.Typography.caption(weight: appState.selectedSubCategory == sub ? .bold : .semibold))
                                 .padding(.horizontal, 16).padding(.vertical, 8)
-                                .background(appState.selectedSubCategory == sub ? Color.primary : Theme.Colors.surfaceCard, in: Capsule())
-                                .foregroundColor(appState.selectedSubCategory == sub ? Color(.systemBackground) : Color.primary)
+                                .background(appState.selectedSubCategory == sub ? Theme.Colors.primary : Theme.Colors.surfaceCard, in: Capsule())
+                                .foregroundColor(appState.selectedSubCategory == sub ? .white : .primary)
                         }
                     }
                 }.padding(.horizontal, Theme.Spacing.screenMargin)
