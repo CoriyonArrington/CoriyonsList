@@ -17,6 +17,9 @@ struct HomeFeedView: View {
     @State private var selectedListingID: UUID?
     @State private var isDetailPresented = false
     
+    // FIX: State flag to ensure the empty state doesn't flash during initial network queries
+    @State private var isFetching = true
+    
     @AppStorage("homeViewMode") private var viewMode: ViewMode = .swipe
     @AppStorage("isNearbyMode") private var isNearbyMode = true
     @AppStorage("nearbyDistance") private var nearbyDistance: Double = 50.0
@@ -57,7 +60,6 @@ struct HomeFeedView: View {
     var homeListings: [LiveListing] {
         return baseFilteredListings.filter { listing in
             let isNotOwnItem = listing.sellerId != appState.currentUserID
-            // In Swipe mode, let SwipeFeedView handle visibility locally so it can show its own Empty State and keep the Undo button.
             let isNotHidden = viewMode == .swipe ? true : !appState.hiddenIDs.contains(listing.id)
             
             return isNotOwnItem && isNotHidden
@@ -78,8 +80,11 @@ struct HomeFeedView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                // Background color handles environment natively
-                Color(viewMode == .map ? .black : .systemGroupedBackground).ignoresSafeArea()
+                Color(viewMode == .map ? .black : .systemGroupedBackground)
+                    .ignoresSafeArea()
+                    .sheet(isPresented: $isDetailPresented) {
+                        ListingPagerView(listings: $appState.listings, filteredIDs: homeListings.map{$0.id}, selectedListingID: $selectedListingID)
+                    }
                 
                 if viewMode != .map { CraigslistPattern() }
                 
@@ -94,7 +99,13 @@ struct HomeFeedView: View {
                     )
                     
                     VStack(spacing: 0) {
-                        GlassHeader(searchText: $globalSearchText, placeholder: "What are you looking for?", onTapped: { appState.selectedTab = 1 })
+                        GlassHeader(
+                            searchText: $globalSearchText,
+                            placeholder: "What are you looking for?",
+                            onTapped: { appState.selectedTab = 1 },
+                            onFetchStarted: { isFetching = true },
+                            onFetchCompleted: { isFetching = false }
+                        )
                         FilterAndViewBar(viewMode: $viewMode).padding(.top, 16)
                         Spacer()
                     }
@@ -102,14 +113,26 @@ struct HomeFeedView: View {
                     ScrollView(showsIndicators: false) {
                         ScrollViewReader { proxy in
                             VStack(alignment: .leading, spacing: 24) {
-                                // FIX: Added explicit zIndex to ensure it strictly sits above the feed layer
                                 FilterAndViewBar(viewMode: $viewMode)
                                     .padding(.top, 16)
                                     .id("TopMarker")
                                     .zIndex(100)
                                 
                                 if homeListings.isEmpty {
-                                    emptyStateView()
+                                    // FIX: Gated the empty state so it doesn't flash during initial load
+                                    if isFetching {
+                                        VStack(spacing: 24) {
+                                            Spacer().frame(height: 60)
+                                            ProgressView().scaleEffect(1.5).tint(Theme.Colors.primary)
+                                            Text("Finding local items...")
+                                                .font(Theme.Typography.body(weight: .semibold))
+                                                .foregroundColor(Theme.Colors.textSecondary)
+                                            Spacer()
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                    } else {
+                                        emptyStateView()
+                                    }
                                 } else {
                                     sectionedFeed(viewMode: viewMode, proxy: proxy)
                                         .zIndex(1)
@@ -123,19 +146,28 @@ struct HomeFeedView: View {
                         try? await Task.sleep(nanoseconds: 500_000_000)
                     }
                     .safeAreaInset(edge: .top) {
-                        GlassHeader(searchText: $globalSearchText, placeholder: "What are you looking for?", onTapped: { appState.selectedTab = 1 })
+                        GlassHeader(
+                            searchText: $globalSearchText,
+                            placeholder: "What are you looking for?",
+                            onTapped: { appState.selectedTab = 1 },
+                            onFetchStarted: { isFetching = true },
+                            onFetchCompleted: { isFetching = false }
+                        )
                     }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            // FIX: The detail sheet is now attached to the absolute outermost view boundary, completely isolating it from the action bar sheet bugs.
-            .sheet(isPresented: $isDetailPresented) {
-                ListingPagerView(listings: $appState.listings, filteredIDs: homeListings.map{$0.id}, selectedListingID: $selectedListingID)
-            }
         }
         .onAppear {
             if !isSwipeViewEnabled && viewMode == .swipe { viewMode = .gallery }
             if nearbyDistance < 5.0 { nearbyDistance = 50.0 }
+            
+            // FIX: Prevent infinite loading if we already have data
+            if appState.listings.isEmpty {
+                triggerRefresh(resetFilters: false)
+            } else {
+                isFetching = false
+            }
         }
         .onChange(of: isSwipeViewEnabled) { newValue in if !newValue && viewMode == .swipe { viewMode = .gallery } }
         .onChange(of: globalSearchText) { _, newValue in
@@ -162,6 +194,7 @@ struct HomeFeedView: View {
             globalSearchText = ""
         }
         
+        isFetching = true
         refreshTask?.cancel()
         refreshTask = Task {
             try? await Task.sleep(nanoseconds: 150_000_000)
@@ -171,6 +204,8 @@ struct HomeFeedView: View {
             await appState.fetchListings(longitude: appState.savedLongitude, latitude: appState.savedLatitude, radiusInMiles: fetchRadius)
             await appState.fetchDashboardListings()
             if !globalSearchText.isEmpty { await appState.fetchSearchResults(query: globalSearchText) }
+            
+            await MainActor.run { isFetching = false }
         }
     }
     
