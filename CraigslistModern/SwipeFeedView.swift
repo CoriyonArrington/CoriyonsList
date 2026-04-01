@@ -33,7 +33,7 @@ struct SwipeFeedView: View {
             let isHiddenOrSwiped = swipedIDs.contains(listing.id) || appState.hiddenIDs.contains(listing.id)
             let isAlreadyInteracted = appState.votedIDs.contains(listing.id) || appState.favoriteIDs.contains(listing.id)
             
-            // FIX: Hide already voted/favorited items from the Swipe Deck so the user gets fresh cards
+            // Hide already voted/favorited items from the Swipe Deck so the user gets fresh cards
             if !isHiddenOrSwiped {
                 if isSearch || !isAlreadyInteracted {
                     active.append(listing)
@@ -56,9 +56,44 @@ struct SwipeFeedView: View {
     
     var body: some View {
         ZStack {
+            // MARK: - Out of Cards State
             if displayItems.isEmpty {
-                Color.clear
+                VStack(spacing: 16) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 56))
+                        .foregroundColor(.orange)
+                    Text("You're all caught up!")
+                        .font(.custom("Montserrat", size: 24).weight(.bold))
+                        .foregroundColor(.primary)
+                    Text("You've seen all the listings for this area. Check back later for new items.")
+                        .font(.custom("NunitoSans", size: 16))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                    
+                    if !actionHistory.isEmpty {
+                        Button(action: undoLastSwipe) {
+                            HStack {
+                                Image(systemName: "arrow.uturn.backward")
+                                Text("Undo Last Swipe")
+                            }
+                            .font(.custom("NunitoSans", size: 16).weight(.bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 14)
+                            .background(Color.primary)
+                            .clipShape(Capsule())
+                        }
+                        .padding(.top, 16)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGray5))
+                .cornerRadius(24)
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
+                
             } else {
+                // MARK: - Swipe Cards
                 ForEach(displayItems, id: \.id) { item in
                     let flyInOffset: CGFloat = {
                         guard let action = item.undoneAction else { return 0 }
@@ -69,19 +104,7 @@ struct SwipeFeedView: View {
                         listing: item.listing,
                         proxy: proxy,
                         canUndo: !actionHistory.isEmpty,
-                        onUndo: {
-                            guard let last = actionHistory.popLast() else { return }
-                            undoneItems[last.0] = last.1
-                            
-                            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                swipedIDs.remove(last.0)
-                                switch last.1 {
-                                case .hide: appState.toggleHidden(last.0)
-                                case .vote: appState.toggleVoted(last.0)
-                                case .favorite: appState.toggleFavorite(last.0)
-                                }
-                            }
-                        },
+                        onUndo: { undoLastSwipe() },
                         onRemove: { action in
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 _ = swipedIDs.insert(item.id)
@@ -100,6 +123,20 @@ struct SwipeFeedView: View {
             }
         }
         .padding(.horizontal, 16)
+    }
+    
+    private func undoLastSwipe() {
+        guard let last = actionHistory.popLast() else { return }
+        undoneItems[last.0] = last.1
+        
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            swipedIDs.remove(last.0)
+            switch last.1 {
+            case .hide: appState.toggleHidden(last.0)
+            case .vote: appState.toggleVoted(last.0)
+            case .favorite: appState.toggleFavorite(last.0)
+            }
+        }
     }
 }
 
@@ -218,20 +255,20 @@ struct SwipeListingCard: View {
     }
     
     private func triggerSwipe(action: SwipeAction) {
-        withAnimation(.easeOut(duration: 0.15)) {
+        withAnimation(.easeOut(duration: 0.25)) {
             switch action {
             case .hide: offset.width = -500
             case .vote: offset.width = 500
             case .favorite: offset.width = 500
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
             switch action {
             case .hide: appState.toggleHidden(listing.id)
             case .vote: appState.toggleVoted(listing.id)
             case .favorite: appState.toggleFavorite(listing.id)
             }
-            offset = .zero
+            // Removed offset = .zero here to prevent the flicker when the view is destroyed
             onRemove(action)
         }
     }
